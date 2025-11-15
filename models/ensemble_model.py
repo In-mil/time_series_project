@@ -4,12 +4,14 @@
 This script combines predictions from ANN, GRU, LSTM, and Transformer models
 to create an ensemble prediction for crypto price movements.
 """
-
+import joblib
 from pathlib import Path
 import datetime
 import time
 import random
 from typing import List, Tuple, Optional, Dict
+import json
+
 
 import matplotlib
 matplotlib.use("Agg")
@@ -26,7 +28,11 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 # Project paths
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = REPO_ROOT / "data" / "final_data" / "20251115_dataset_crp.csv"
-MODELS_DIR = Path("/Users/ina/Documents/spicedAcademy/time_series_project/models")
+MODELS_DIR = REPO_ROOT / "models"
+
+ARTIFACTS_DIR = REPO_ROOT / "artifacts" / "ensemble"
+ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+
 
 # Random seeds for reproducibility
 SEED = 101
@@ -583,6 +589,28 @@ def main() -> None:
         mae_values,
         FIG_DIR / "model_comparison.png"
     )
+
+    # Save ensemble artifacts
+    scaler_X_path = ARTIFACTS_DIR / "scaler_X.pkl"
+    scaler_y_path = ARTIFACTS_DIR / "scaler_y.pkl"
+    ensemble_meta_path = ARTIFACTS_DIR / "ensemble_meta.json"
+
+    # Save scaler
+    joblib.dump(scaler_X, scaler_X_path)
+    joblib.dump(scaler_y, scaler_y_path)
+
+    # Metadaten für das Ensemble speichern
+    ensemble_meta = {
+        "base_models": model_names,  # z.B. ["ANN", "GRU", "LSTM", "Transformer"]
+        "look_back": 20,
+        "target_column": "future_5_close_higher_than_today",
+        "created_at": datetime.datetime.now().isoformat()
+
+    }
+    with open(ensemble_meta_path, "w") as f:
+        json.dump(ensemble_meta, f, indent=2)
+
+    print(f"\nArtifacts saved to: {ARTIFACTS_DIR}")
 
     print(f"\nAll outputs saved to: {FIG_DIR}")
     print("\n" + "="*50)
