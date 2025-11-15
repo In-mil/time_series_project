@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Transformer experiment ported from notebooks/2_Modeling_Transformer.ipynb."""
-
-import random
 from pathlib import Path
+import datetime
+import time
+import random
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,6 +17,10 @@ from tensorflow.keras.layers import Dense, Dropout, GlobalAveragePooling1D, Laye
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = REPO_ROOT / "data" / "final_data" / "20251115_dataset_crp.csv"
+
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+FIG_DIR = REPO_ROOT / "figures" / f"transformer_run_{timestamp}"
+FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 TARGET_COLUMNS = [
     "future_5_close_higher_than_today",
@@ -207,7 +212,8 @@ def main() -> None:
     axes[1].legend()
     axes[1].grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.show()
+    fig.savefig(FIG_DIR / "history_mae_mse.png", bbox_inches="tight")
+    plt.close(fig)
 
     y_pred_scaled = model_transformer.predict(X_test_seq)
     mae = mean_absolute_error(y_test_seq, y_pred_scaled)
@@ -240,7 +246,8 @@ def main() -> None:
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.show()
+    plt.savefig(FIG_DIR / "pred_vs_actual_scaled.png", bbox_inches="tight")
+    plt.close()
 
     residuals = y_test_original - y_pred_original
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
@@ -257,7 +264,8 @@ def main() -> None:
     axes[1].set_title("Transformer: Residuals vs Predicted")
     axes[1].grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.show()
+    fig.savefig(FIG_DIR / "residuals.png", bbox_inches="tight")
+    plt.close(fig)
 
     print("Residual Stats:")
     print(f"   Mean: {residuals.mean():.4f}")

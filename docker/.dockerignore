@@ -1,0 +1,13 @@
+.venv
+__pycache__
+*.ipynb
+.ipynb_checkpoints
+notebooks
+data/figures
+*.keras
+*.h5
+*.png
+*.jpg
+*.jpeg
+*.pdf
+.DS_Store
