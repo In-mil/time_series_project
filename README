@@ -1,0 +1,25 @@
+# Time Series Project: Model Comparison
+
+## Overview
+
+This project compares three different neural network architectures for time series prediction:
+
+- **ANN (Artificial Neural Network)**: Simple feedforward network with no temporal awareness
+- **GRU (Gated Recurrent Unit)**: Recurrent network with 2 gates, simpler and faster training
+- **LSTM (Long Short-Term Memory)**: Recurrent network with 3 gates, better for long-term dependencies
+
+## Quick Comparison Table
+
+| Feature | ANN | GRU | LSTM |
+|---------|-----|-----|------|
+| Architecture | Feedforward | Recurrent | Recurrent |
+| Gates | None | 2 (Update, Reset) | 3 (Input, Forget, Output) |
+| Parameters | ~17K | ~35K | ~45K |
+| Input Shape | 2D (samples, features) | 3D (samples, time, features) | 3D (samples, time, features) |
+| Temporal Memory | Manual lags only | Built-in | Built-in (better) |
+| Training Speed | Fastest | Fast | Slower |
+| Best For | Baseline, fast experiments | Medium sequences | Long dependencies |
+
+## Usage
+
+Each notebook contains a detailed implementation and explanation of the respective model architecture.

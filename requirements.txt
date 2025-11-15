@@ -1,0 +1,17 @@
+ipython
+jupyterlab
+matplotlib
+notebook
+numpy
+pandas
+pip
+python-dotenv
+ruff
+scikit-learn
+scipy
+xgboost
+lightgbm
+tensorflow
+imbalanced-learn
+seaborn
+plotly
