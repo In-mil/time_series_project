@@ -8,6 +8,33 @@ This project compares three different neural network architectures for time seri
 - **GRU (Gated Recurrent Unit)**: Recurrent network with 2 gates, simpler and faster training
 - **LSTM (Long Short-Term Memory)**: Recurrent network with 3 gates, better for long-term dependencies
 
+## Setup and Installation
+
+### Prerequisites
+- Python 3.8 or higher
+
+### Installation Steps
+
+#### **`macOS`**
+```BASH
+  pyenv local 3.13.3
+  python -m venv .venv
+  source .venv/bin/activate
+  pip install --upgrade pip
+  pip install -r requirements.txt
+  ```
+
+  #### **`WindowsOS`**
+ For `PowerShell` CLI :
+
+  ```PowerShell
+  pyenv local 3.13.3
+  python -m venv .venv
+  .venv\Scripts\Activate.ps1
+  python -m pip install --upgrade pip
+  pip install -r requirements.txt
+  ```
+
 ## Quick Comparison Table
 
 | Feature | ANN | GRU | LSTM |
