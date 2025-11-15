@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """ANN model script ported from notebooks/2_Modeling_ANN.ipynb."""
 
-import random
+from pathlib import Path
 import datetime
 import time
-from pathlib import Path
+import random
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
 import pandas as pd
 import seaborn as sns
 import numpy as np
@@ -16,8 +19,14 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Input
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = REPO_ROOT / "data" / "final_data" / "20251115_dataset_crp.csv"
+
+
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+FIG_DIR = REPO_ROOT / "figures" / f"ann_run_{timestamp}"
+FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def main() -> None:
@@ -166,7 +175,8 @@ def main() -> None:
     axes[1].grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.show()
+    fig.savefig(FIG_DIR / "history_mae_mse.png", bbox_inches="tight")
+    plt.close(fig)
 
     y_pred_scaled = ann_model.predict(X_test_scaled)
 
@@ -198,7 +208,9 @@ def main() -> None:
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.show()
+    plt.savefig(FIG_DIR / "pred_vs_actual.png", bbox_inches="tight")
+    plt.close()
+
 
     residuals = y_test - y_pred_original.flatten()
     plt.figure(figsize=(12, 4))
@@ -218,7 +230,9 @@ def main() -> None:
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.show()
+    plt.savefig(FIG_DIR / "residuals.png", bbox_inches="tight")
+    plt.close()
+
 
 
 if __name__ == "__main__":
