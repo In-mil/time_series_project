@@ -14,7 +14,9 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from tensorflow.keras import Input, Model
 from tensorflow.keras.layers import Dense, Dropout, GlobalAveragePooling1D, LayerNormalization, MultiHeadAttention
 
-DATA_PATH = Path(__file__).resolve().parent / "data" / "final_data" / "20251115_dataset_crp.csv"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DATA_PATH = REPO_ROOT / "data" / "final_data" / "20251115_dataset_crp.csv"
+
 TARGET_COLUMNS = [
     "future_5_close_higher_than_today",
     "future_10_close_higher_than_today",

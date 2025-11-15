@@ -16,7 +16,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Input
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-DATA_PATH = Path(__file__).resolve().parent / "data" / "final_data" / "20251115_dataset_crp.csv"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DATA_PATH = REPO_ROOT / "data" / "final_data" / "20251115_dataset_crp.csv"
 
 
 def main() -> None:

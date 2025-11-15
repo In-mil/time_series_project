@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LSTM model script copied from notebooks/2_Modeling_LSTM.ipynb."""
+"""GRU model script derived from notebooks/2_Modeling_GRU.ipynb."""
 
 import random
 import datetime
@@ -14,9 +14,11 @@ import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
+from tensorflow.keras.layers import GRU, Dense, Dropout, Input
 
-DATA_PATH = Path(__file__).resolve().parent / "data" / "final_data" / "20251115_dataset_crp.csv"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DATA_PATH = REPO_ROOT / "data" / "final_data" / "20251115_dataset_crp.csv"
+
 TARGET_COLUMNS = [
     "future_5_close_higher_than_today",
     "future_10_close_higher_than_today",
@@ -30,7 +32,7 @@ TARGET_COLUMNS = [
 
 
 def create_sequences(X_data: np.ndarray, y_data: np.ndarray, df: pd.DataFrame, look_back: int = 10):
-    """Create sliding-window sequences for each cryptocurrency."""
+    """Create sliding-window sequences per crypto."""
     X_sequences = []
     y_sequences = []
     original_indices = []
@@ -56,16 +58,29 @@ def create_sequences(X_data: np.ndarray, y_data: np.ndarray, df: pd.DataFrame, l
 
 
 def main() -> None:
-    """Run the LSTM modeling experiment."""
-    df_lstm = pd.read_csv(DATA_PATH)
+    """Run the GRU model pipeline."""
+    df_gru = pd.read_csv(DATA_PATH)
 
     split_date_train = "2024-07-01"
     split_date_val = "2024-10-01"
     split_date_test = "2025-01-01"
 
-    df_train = df_lstm[df_lstm["date"] < split_date_train].copy()
-    df_val = df_lstm[(df_lstm["date"] >= split_date_train) & (df_lstm["date"] < split_date_val)].copy()
-    df_test = df_lstm[df_lstm["date"] >= split_date_test].copy()
+    x_cols_to_drop = [
+        "ticker",
+        "date",
+        "future_5_close_higher_than_today",
+        "future_10_close_higher_than_today",
+        "future_5_close_lower_than_today",
+        "future_10_close_lower_than_today",
+        "higher_close_today_vs_future_5_close",
+        "higher_close_today_vs_future_10_close",
+        "lower_close_today_vs_future_5_close",
+        "lower_close_today_vs_future_10_close",
+    ]
+
+    df_train = df_gru[df_gru["date"] < split_date_train].copy()
+    df_val = df_gru[(df_gru["date"] >= split_date_train) & (df_gru["date"] < split_date_val)].copy()
+    df_test = df_gru[df_gru["date"] >= split_date_test].copy()
 
     print(f"\nTraining set: {len(df_train)} samples")
     print(f"Validation set: {len(df_val)} samples")
@@ -84,89 +99,86 @@ def main() -> None:
 
     scaler_X = StandardScaler()
     scaler_y = StandardScaler()
-    cols_to_scale = [col for col in feature_cols if col not in ["ticker", "date"]]
+    cols_to_scale = [col for col in X_train.columns if col not in ["ticker", "date"]]
 
     X_train_scaled_vals = scaler_X.fit_transform(X_train[cols_to_scale])
-    X_val_scaled_vals = scaler_X.transform(X_val[cols_to_scale])
-    X_test_scaled_vals = scaler_X.transform(X_test[cols_to_scale])
-
     y_train_scaled = scaler_y.fit_transform(y_train.reshape(-1, 1)).ravel()
+    X_val_scaled_vals = scaler_X.transform(X_val[cols_to_scale])
     y_val_scaled = scaler_y.transform(y_val.reshape(-1, 1)).ravel()
+    X_test_scaled_vals = scaler_X.transform(X_test[cols_to_scale])
     y_test_scaled = scaler_y.transform(y_test.reshape(-1, 1)).ravel()
 
-    print(f"Features shape: {X_train_scaled_vals.shape}")
-    print(f"Target shape: {y_train_scaled.shape}")
-    print("Note: 'ticker' and 'date' kept for sequence creation")
+    print(f"   Features shape: {X_train_scaled_vals.shape}")
+    print(f"   Target shape: {y_train_scaled.shape}")
+    print("   Note: 'ticker' and 'date' kept for sequence creation")
 
     look_back = 20
     print("Creating sequences...")
     X_train_seq, y_train_seq, train_indices = create_sequences(X_train_scaled_vals, y_train_scaled, X_train, look_back)
     X_val_seq, y_val_seq, val_indices = create_sequences(X_val_scaled_vals, y_val_scaled, X_val, look_back)
     X_test_seq, y_test_seq, test_indices = create_sequences(X_test_scaled_vals, y_test_scaled, X_test, look_back)
-
     n_features = X_train_seq.shape[2]
+
     print(f"\nShape: {X_train_seq.shape}")
     print(f"   {X_train_seq.shape[0]} sequences")
     print(f"   {look_back} days look-back")
     print(f"   {n_features} features")
     print("   Indices tracked for alignment")
 
-    lstm_units = 64
-    lstm_dropout = 0.3
-    use_second_lstm = True
+    gru_units = 64
+    gru_dropout = 0.3
+    use_second_gru = True
+    dense_dropout = 0.2
     learning_rate = 0.0001
     L2_regularization = 0.0001
 
-    if use_second_lstm:
-        model_lstm = Sequential(
+    if use_second_gru:
+        model_gru = Sequential(
             [
                 Input(shape=(look_back, n_features)),
-                LSTM(
-                    lstm_units,
+                GRU(
+                    gru_units,
                     return_sequences=True,
                     kernel_regularizer=tf.keras.regularizers.l2(L2_regularization),
-                    name="lstm_layer_1",
+                    name="gru_layer_1",
                 ),
-                Dropout(lstm_dropout, name="dropout_1"),
-                LSTM(
-                    lstm_units // 2,
+                Dropout(gru_dropout, name="dropout_1"),
+                GRU(
+                    gru_units // 2,
                     return_sequences=False,
                     kernel_regularizer=tf.keras.regularizers.l2(L2_regularization),
-                    name="lstm_layer_2",
+                    name="gru_layer_2",
                 ),
-                Dropout(lstm_dropout, name="dropout_2"),
+                Dropout(gru_dropout, name="dropout_2"),
                 Dense(1, activation="linear", name="output"),
             ]
         )
     else:
-        model_lstm = Sequential(
+        model_gru = Sequential(
             [
                 Input(shape=(look_back, n_features)),
-                LSTM(
-                    lstm_units,
+                GRU(
+                    gru_units,
                     return_sequences=False,
                     kernel_regularizer=tf.keras.regularizers.l2(L2_regularization),
-                    name="lstm_layer",
+                    name="gru_layer",
                 ),
-                Dropout(lstm_dropout, name="dropout"),
+                Dropout(gru_dropout, name="dropout"),
                 Dense(1, activation="linear", name="output"),
             ]
         )
 
-    model_lstm.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate), loss="mae", metrics=["mae", "mse"])
-    print("LSTM Model Architecture:")
-    model_lstm.summary()
+    model_gru.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate), loss="mae", metrics=["mae", "mse"])
+    print("GRU Model Architecture:")
+    model_gru.summary()
 
     epochs = 100
     batch_size = 128
     patience = 10
 
-    early_stopping = tf.keras.callbacks.EarlyStopping(
-        monitor="val_loss", patience=patience, restore_best_weights=True, verbose=1
-    )
+    early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=patience, restore_best_weights=True, verbose=1)
 
-    print("Training LSTM model...")
-    history = model_lstm.fit(
+    history = model_gru.fit(
         X_train_seq,
         y_train_seq,
         validation_data=(X_val_seq, y_val_seq),
@@ -190,22 +202,22 @@ def main() -> None:
     fig, axes = plt.subplots(1, 2, figsize=(14, 4))
     axes[0].plot(history.history["mae"], label="training mae", linewidth=2)
     axes[0].plot(history.history["val_mae"], label="validation mae", linewidth=2)
-    axes[0].set_xlabel("Epoch")
-    axes[0].set_ylabel("MAE")
-    axes[0].set_title("LSTM: Mean Absolute Error")
+    axes[0].set_xlabel("epoch")
+    axes[0].set_ylabel("mae")
+    axes[0].set_title("GRU: Mean Absolute Error")
     axes[0].legend()
     axes[0].grid(True, alpha=0.3)
     axes[1].plot(history.history["mse"], label="training mse", linewidth=2)
     axes[1].plot(history.history["val_mse"], label="validation mse", linewidth=2)
-    axes[1].set_xlabel("Epoch")
-    axes[1].set_ylabel("MSE")
-    axes[1].set_title("LSTM: Mean Squared Error")
+    axes[1].set_xlabel("epoch")
+    axes[1].set_ylabel("mse")
+    axes[1].set_title("GRU: Mean Squared Error")
     axes[1].legend()
     axes[1].grid(True, alpha=0.3)
     plt.tight_layout()
     plt.show()
 
-    y_pred_scaled = model_lstm.predict(X_test_seq)
+    y_pred_scaled = model_gru.predict(X_test_seq)
     mae = mean_absolute_error(y_test_seq, y_pred_scaled)
     mse = mean_squared_error(y_test_seq, y_pred_scaled)
     print("Test Set Performance (Scaled Data):")
@@ -217,7 +229,7 @@ def main() -> None:
     mae = mean_absolute_error(y_test_original, y_pred_original)
     mse = mean_squared_error(y_test_original, y_pred_original)
     print("Test Set Performance (Original Scale):")
-    print(f"   MAE:  {mae:.4f}")
+    print(f"   MAE:  {mae:.4f} percentage points")
     print(f"   MSE:  {mse:.4f}")
     print(f"\nNote: {len(y_pred_original)} predictions aligned with original data using indices")
 
@@ -232,7 +244,7 @@ def main() -> None:
     )
     plt.xlabel("Actual Values (Scaled)")
     plt.ylabel("Predicted Values (Scaled)")
-    plt.title("LSTM: Predicted vs Actual (Test Set)")
+    plt.title("GRU: Predicted vs Actual (Test Set)")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -244,13 +256,13 @@ def main() -> None:
     axes[0].axvline(x=0, color="r", linestyle="--", linewidth=2)
     axes[0].set_xlabel("Residual (Actual - Predicted)")
     axes[0].set_ylabel("Frequency")
-    axes[0].set_title("LSTM: Distribution of Residuals")
+    axes[0].set_title("GRU: Distribution of Residuals")
     axes[0].grid(True, alpha=0.3)
     axes[1].scatter(y_pred_original, residuals, alpha=0.5, s=10)
     axes[1].axhline(y=0, color="r", linestyle="--", linewidth=2)
     axes[1].set_xlabel("Predicted Values")
     axes[1].set_ylabel("Residuals")
-    axes[1].set_title("LSTM: Residuals vs Predicted")
+    axes[1].set_title("GRU: Residuals vs Predicted")
     axes[1].grid(True, alpha=0.3)
     plt.tight_layout()
     plt.show()
