@@ -40,23 +40,19 @@ jobs:
           echo "DVC remote configuration:"
           dvc remote list -v
 
-      - name: Pull dataset from GCS (force overwrite)
+      - name: Pull dataset from GCS
         run: |
-          echo "Checking DVC status before pull..."
-          dvc status -r gcsremote -v || true
           echo "Checking .dvc files..."
           ls -la data/final_data/*.dvc || true
-          echo "Pulling dataset .dvc file explicitly..."
-          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote --force -v || (echo "ERROR: Dataset DVC pull failed"; exit 1)
-          echo "Pulling pipeline outputs from DVC remote..."
-          dvc pull -r gcsremote --force -v || (echo "ERROR: DVC pull failed"; exit 1)
+          echo "Pulling dataset from remote storage..."
+          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote --force -v || (echo "ERROR: Dataset pull failed"; exit 1)
           echo "Verifying dataset file exists..."
           ls -lh data/final_data/
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
-            echo "ERROR: Dataset file not found after DVC pull"
+            echo "ERROR: Dataset file not found after pull"
             exit 1
           fi
-          echo "Dataset successfully pulled and verified"
+          echo "Dataset successfully pulled ($(stat -c%s data/final_data/20251115_dataset_crp.csv | numfmt --to=iec-i)B)"
 
       - name: Run all model stages sequentially
         run: |

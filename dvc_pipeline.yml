@@ -36,16 +36,14 @@ jobs:
           mkdir -p .dvc/cache
           dvc config cache.dir .dvc/cache
 
-      - name: Force-pull dataset from GCS before training
+      - name: Pull dataset from GCS
         run: |
-          echo "Pulling dataset .dvc file explicitly..."
-          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote --force -v || (echo "Dataset DVC pull failed"; exit 1)
-          echo "Pulling pipeline outputs..."
-          dvc pull -r gcsremote --force -v || (echo "DVC pull failed"; exit 1)
-          echo "Checking dataset files..."
+          echo "Pulling dataset from remote storage..."
+          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote --force -v || (echo "Dataset pull failed"; exit 1)
+          echo "Verifying dataset file exists..."
           ls -lh data/final_data/ || true
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
-            echo "Dataset missing even after pull – aborting!"
+            echo "Dataset missing after pull – aborting!"
             exit 1
           fi
           echo "Dataset successfully pulled and verified"
