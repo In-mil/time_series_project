@@ -17,12 +17,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install dvc dvc-gs mlflow tensorflow scikit-learn matplotlib pandas numpy joblib
-
+          - name: Install dependencies
+          run: |
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+            pip install "dvc[gs]"==3.64.0 mlflow tensorflow scikit-learn matplotlib pandas numpy joblib
+            pip show dvc-gs || pip install dvc-gs
+  
       - name: Configure GCP credentials
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
