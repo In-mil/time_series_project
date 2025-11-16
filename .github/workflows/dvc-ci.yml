@@ -34,11 +34,27 @@ jobs:
         env:
           GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
         run: |
+          echo "Configuring DVC remote with bucket: ${GCS_BUCKET_NAME}"
           dvc remote add -d gcsremote gs://${GCS_BUCKET_NAME}/.dvc/cache --force
           dvc remote modify gcsremote credentialpath gcp-key.json
+          echo "DVC remote configuration:"
+          dvc remote list -v
 
       - name: Pull dataset from GCS (force overwrite)
-        run: dvc pull -r gcsremote --force -v
+        run: |
+          echo "Checking DVC status before pull..."
+          dvc status -r gcsremote -v || true
+          echo "Checking .dvc files..."
+          ls -la data/final_data/*.dvc || true
+          echo "Pulling data from DVC remote..."
+          dvc pull -r gcsremote --force -v || (echo "ERROR: DVC pull failed"; exit 1)
+          echo "Verifying dataset file exists..."
+          ls -lh data/final_data/
+          if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
+            echo "ERROR: Dataset file not found after DVC pull"
+            exit 1
+          fi
+          echo "Dataset successfully pulled and verified"
 
       - name: Run all model stages sequentially
         run: |
