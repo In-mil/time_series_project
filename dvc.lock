@@ -54,3 +54,19 @@ stages:
       hash: md5
       md5: c562dab1d765681c3ed97d97218253f8
       size: 594808
+  train_gru:
+    cmd: python -u models/gru_model.py
+    deps:
+    - path: data/final_data/20251115_dataset_crp.csv
+      hash: md5
+      md5: 29258467083f22579c1a59b14125f628
+      size: 287884595
+    - path: models/gru_model.py
+      hash: md5
+      md5: 3ae1798ccdc2d130c3449da2a6c52b1b
+      size: 12682
+    outs:
+    - path: models/model_gru.keras
+      hash: md5
+      md5: aa0c4aafd1faaf66a7cac7af82561f1c
+      size: 458858
