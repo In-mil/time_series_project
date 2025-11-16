@@ -101,3 +101,31 @@ stages:
       hash: md5
       md5: 8202ccb9315554b0b68eb0589c59f5e5
       size: 4023614
+  evaluate_models:
+    cmd: python -u evaluation/evaluate_models.py
+    deps:
+    - path: models/model_ann.keras
+      hash: md5
+      md5: fde7d7998aac7c4dc7c37f71521498a7
+      size: 235759
+    - path: models/model_ensemble.json
+      hash: md5
+      md5: 0770e9f661bffe0857d7b799daf0c7e4
+      size: 461
+    - path: models/model_gru.keras
+      hash: md5
+      md5: 77b0473bc9e47a2c31efa6afdfe42553
+      size: 458858
+    - path: models/model_lstm.keras
+      hash: md5
+      md5: c562dab1d765681c3ed97d97218253f8
+      size: 594808
+    - path: models/model_transformer.keras
+      hash: md5
+      md5: 8202ccb9315554b0b68eb0589c59f5e5
+      size: 4023614
+    outs:
+    - path: reports/metrics.json
+      hash: md5
+      md5: 769afa1144cd6d19ea78aabe30098caa
+      size: 947

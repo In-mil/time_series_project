@@ -42,3 +42,13 @@ stages:
     outs:
       - models/model_ensemble.json
       - artifacts/ensemble
+  evaluate_models:
+    cmd: python -u evaluation/evaluate_models.py
+    deps:
+      - models/model_ann.keras
+      - models/model_gru.keras
+      - models/model_lstm.keras
+      - models/model_transformer.keras
+      - models/model_ensemble.json
+    outs:
+      - reports/metrics.json
