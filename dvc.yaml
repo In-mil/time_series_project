@@ -1,0 +1,9 @@
+stages:
+  train_ensemble:
+    cmd: python models/ensemble_model.py
+    deps:
+    - data/final_data/20251115_dataset_crp.csv
+    - models/ensemble_model.py
+    outs:
+    - artifacts/ensemble
+    - figures
