@@ -22,3 +22,35 @@ stages:
       md5: b99722df417ce1e91ed9fc84a1a34cea.dir
       size: 488800
       nfiles: 3
+  train_ann:
+    cmd: python -u models/ann_model.py
+    deps:
+    - path: data/final_data/20251115_dataset_crp.csv
+      hash: md5
+      md5: 29258467083f22579c1a59b14125f628
+      size: 287884595
+    - path: models/ann_model.py
+      hash: md5
+      md5: 4ebde61c188ba2b07ae3ec56c8b39c5b
+      size: 9575
+    outs:
+    - path: models/model_ann.keras
+      hash: md5
+      md5: 1ac67a3e2d46097b9245e0f733b7c53b
+      size: 235759
+  train_lstm:
+    cmd: python -u models/lstm_model.py
+    deps:
+    - path: data/final_data/20251115_dataset_crp.csv
+      hash: md5
+      md5: 29258467083f22579c1a59b14125f628
+      size: 287884595
+    - path: models/lstm_model.py
+      hash: md5
+      md5: 8194e19ce9fae032f0d9068832dccfbd
+      size: 12262
+    outs:
+    - path: models/model_lstm.keras
+      hash: md5
+      md5: c562dab1d765681c3ed97d97218253f8
+      size: 594808

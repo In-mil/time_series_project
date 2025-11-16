@@ -1,6 +1,6 @@
 stages:
   train_ann:
-    cmd: python models/ann_model.py
+    cmd: python -u models/ann_model.py
     deps:
       - models/ann_model.py
       - data/final_data/20251115_dataset_crp.csv
@@ -8,7 +8,7 @@ stages:
       - models/model_ann.keras
 
   train_gru:
-    cmd: python models/gru_model.py
+    cmd: python -u models/gru_model.py
     deps:
       - models/gru_model.py
       - data/final_data/20251115_dataset_crp.csv
@@ -16,7 +16,7 @@ stages:
       - models/model_gru.keras
 
   train_lstm:
-    cmd: python models/lstm_model.py
+    cmd: python -u models/lstm_model.py
     deps:
       - models/lstm_model.py
       - data/final_data/20251115_dataset_crp.csv
@@ -24,7 +24,7 @@ stages:
       - models/model_lstm.keras
 
   train_transformer:
-    cmd: python models/transformer_model.py
+    cmd: python -u models/transformer_model.py
     deps:
       - models/transformer_model.py
       - data/final_data/20251115_dataset_crp.csv
@@ -32,7 +32,7 @@ stages:
       - models/model_transformer.keras
 
   train_ensemble:
-    cmd: python models/ensemble_model.py
+    cmd: python -u models/ensemble_model.py
     deps:
       - data/final_data/20251115_dataset_crp.csv
       - models/ensemble_model.py

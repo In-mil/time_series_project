@@ -11,7 +11,6 @@ mlflow.set_experiment("ensemble_experiment")
 import joblib
 from pathlib import Path
 import datetime
-import time
 import random
 from typing import List, Tuple, Optional, Dict
 import json
@@ -39,7 +38,7 @@ ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # Random seeds for reproducibility
-SEED = 101
+SEED = 42
 tf.random.set_seed(SEED)
 np.random.seed(SEED)
 random.seed(SEED)
@@ -49,15 +48,12 @@ timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 FIG_DIR = REPO_ROOT / "figures" / f"ensemble_run_{timestamp}"
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 
-mlflow.set_tracking_uri("http://127.0.0.1:5001")
-mlflow.set_experiment("ensemble_experiment")
-
 
 def load_and_split_data(
     data_path: Path,
     train_split: str = "2024-07-01",
     val_split: str = "2024-10-01",
-    test_split: str = "2025-01-01"
+    test_split: str = "2024-10-01"  # Fixed: removed 3-month gap
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Load data and split into train/validation/test sets.
 
@@ -70,6 +66,10 @@ def load_and_split_data(
     Returns:
         Tuple of (train_df, val_df, test_df)
     """
+    # Error handling for file operations
+    if not data_path.exists():
+        raise FileNotFoundError(f"Data file not found: {data_path}")
+
     df = pd.read_csv(data_path)
 
     df_train = df[df['date'] < train_split].copy()

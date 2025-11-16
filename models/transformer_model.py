@@ -2,18 +2,24 @@
 """Transformer experiment ported from notebooks/2_Modeling_Transformer.ipynb."""
 from pathlib import Path
 import datetime
-import time
 import random
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from tensorflow.keras import Input, Model
 from tensorflow.keras.layers import Dense, Dropout, GlobalAveragePooling1D, LayerNormalization, MultiHeadAttention
+
+import mlflow
+
+mlflow.set_tracking_uri("http://127.0.0.1:5001")
+mlflow.set_experiment("transformer_experiment")
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = REPO_ROOT / "data" / "final_data" / "20251115_dataset_crp.csv"
@@ -34,7 +40,7 @@ TARGET_COLUMNS = [
 ]
 
 
-def set_seed(seed: int = 101) -> None:
+def set_seed(seed: int = 42) -> None:
     """Set pseudo-random seeds for reproducibility."""
     tf.random.set_seed(seed)
     np.random.seed(seed)
@@ -123,13 +129,18 @@ def build_transformer(look_back: int, n_features: int):
 def main() -> None:
     """Run the transformer modeling pipeline."""
     set_seed()
+
+    # Error handling for file operations
+    if not DATA_PATH.exists():
+        raise FileNotFoundError(f"Data file not found: {DATA_PATH}")
+
     df_trans = pd.read_csv(DATA_PATH)
     print(f"Loaded {df_trans.shape[0]:,} rows, {df_trans.shape[1]} columns")
     print(f"Cryptocurrencies: {df_trans['ticker'].nunique()}")
 
     split_date_train = "2024-07-01"
     split_date_val = "2024-10-01"
-    split_date_test = "2025-01-01"
+    split_date_test = "2024-10-01"  # Fixed: removed 3-month gap
 
     df_train = df_trans[df_trans["date"] < split_date_train].copy()
     df_val = df_trans[(df_trans["date"] >= split_date_train) & (df_trans["date"] < split_date_val)].copy()
@@ -272,6 +283,38 @@ def main() -> None:
     print(f"   Std:  {residuals.std():.4f}")
     print(f"   Min:  {residuals.min():.4f}")
     print(f"   Max:  {residuals.max():.4f}")
+
+    # Save model for DVC
+    MODEL_PATH = REPO_ROOT / "models" / "model_transformer.keras"
+    model_transformer.save(MODEL_PATH)
+    print(f"\nModel saved to: {MODEL_PATH}")
+
+    # MLflow Tracking
+    with mlflow.start_run(run_name=f"transformer_{timestamp}"):
+        # Hyperparameters (from build_transformer function)
+        mlflow.log_param("head_size", 128)
+        mlflow.log_param("num_heads", 4)
+        mlflow.log_param("ff_dim", 128)
+        mlflow.log_param("dropout_rate", 0.2)
+        mlflow.log_param("mlp_dropout", 0.3)
+        mlflow.log_param("num_blocks", 2)
+        mlflow.log_param("learning_rate", 0.0001)
+        mlflow.log_param("epochs", epochs)
+        mlflow.log_param("batch_size", batch_size)
+        mlflow.log_param("patience", patience)
+        mlflow.log_param("look_back", look_back)
+
+        mlflow.log_metric("train_mae", mae_train)
+        mlflow.log_metric("train_mse", mse_train)
+        mlflow.log_metric("val_mae", val_mae)
+        mlflow.log_metric("val_mse", val_mse)
+        mlflow.log_metric("test_mae_scaled", mean_absolute_error(y_test_seq, y_pred_scaled))
+        mlflow.log_metric("test_mse_scaled", mean_squared_error(y_test_seq, y_pred_scaled))
+        mlflow.log_metric("test_mae_original", mean_absolute_error(y_test_original, y_pred_original))
+        mlflow.log_metric("test_mse_original", mean_squared_error(y_test_original, y_pred_original))
+
+        mlflow.log_artifacts(str(FIG_DIR), artifact_path="figures")
+        mlflow.log_artifact(str(MODEL_PATH), artifact_path="model")
 
 
 if __name__ == "__main__":
