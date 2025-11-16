@@ -220,3 +220,4 @@ cython_debug/
 /figures
 echo "models/*.keras"
 models/*.keras
+models/model_ensemble.json
