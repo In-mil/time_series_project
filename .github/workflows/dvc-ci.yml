@@ -1,0 +1,44 @@
+name: DVC CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  train-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install dvc[gcs]
+
+      - name: Configure GCP credentials
+        env:
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        run: |
+          echo "$GCP_SERVICE_ACCOUNT_KEY" > gcp-key.json
+          gcloud auth activate-service-account --key-file=gcp-key.json
+
+      - name: Configure DVC remote
+        env:
+          GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
+        run: |
+          dvc remote add -d gcsremote gs://${GCS_BUCKET_NAME} --force
+          dvc remote modify gcsremote credentialpath gcp-key.json
+
+      - name: Run DVC pipeline
+        run: dvc repro
+
+      - name: Push data to GCS
+        run: dvc push
