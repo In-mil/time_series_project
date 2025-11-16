@@ -1,13 +1,63 @@
+# Virtual environments
 .venv
-__pycache__
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Jupyter notebooks (not needed in container)
 *.ipynb
 .ipynb_checkpoints
-notebooks
-data/figures
-*.keras
-*.h5
+notebooks/
+
+# Git & DVC directories (not needed)
+.git/
+.dvc/
+*.dvc
+
+# Data directory (only specific files copied)
+data/
+
+# Figures
+figures/
 *.png
 *.jpg
 *.jpeg
 *.pdf
+reports/
+
+# Documentation
+*.md
+!DOCKER.md
+docu/
+
+# CI/CD
+.github/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
 .DS_Store
+
+# Logs & DBs (not needed in container)
+*.log
+*.db
+mlflow.db
+mlruns/
+
+# Scripts
+build_docker.sh
+
+# Secrets
+.env
+passwords.env
+GCS_key/
+
+# NOTE: models/*.keras and artifacts/ are needed!
+# Don't add *.keras or artifacts/ here - they're copied in Dockerfile

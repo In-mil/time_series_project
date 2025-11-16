@@ -1,52 +1,106 @@
-# Time Series Project: Model Comparison
+# Time Series Prediction Project
+
+[![GitHub Actions](https://img.shields.io/github/actions/workflow/status/In-mil/time_series_project/dvc_pipeline.yml?branch=main&logo=github)](https://github.com/In-mil/time_series_project/actions)
+[![DVC](https://img.shields.io/badge/DVC-enabled-blueviolet?logo=dvc)](https://dvc.org/)
+[![MLflow](https://img.shields.io/badge/MLflow-tracking-orange?logo=mlflow)](https://mlflow.org/)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker)](https://www.docker.com/)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python)](https://www.python.org/)
+[![TensorFlow](https://img.shields.io/badge/TensorFlow-2.15+-orange?logo=tensorflow)](https://www.tensorflow.org/)
+
+---
 
 ## Overview
 
-This project compares three different neural network architectures for time series prediction:
+This project implements and compares several **deep learning architectures** for **financial time series forecasting**, using cryptocurrency and macroeconomic data.  
+The models are trained and versioned with **DVC**, evaluated via **MLflow**, and deployed through **GitHub Actions**.
 
-- **ANN (Artificial Neural Network)**: Simple feedforward network with no temporal awareness
-- **GRU (Gated Recurrent Unit)**: Recurrent network with 2 gates, simpler and faster training
-- **LSTM (Long Short-Term Memory)**: Recurrent network with 3 gates, better for long-term dependencies
+---
 
-## Setup and Installation
+## Model Architectures
 
-### Prerequisites
-- Python 3.8 or higher
+| Model | Type | Key Features | Typical Use Case |
+|--------|------|---------------|------------------|
+| **ANN (Artificial Neural Network)** | Feedforward dense layers | Simple and fast, no temporal context | Baseline for non-sequential dependencies |
+| **GRU (Gated Recurrent Unit)** | Recurrent (2 gates) | Efficient and lightweight | Short-term sequence modeling |
+| **LSTM (Long Short-Term Memory)** | Recurrent (3 gates) | Captures long-term dependencies | Complex time dependencies |
+| **Transformer** | Attention-based | Learns relationships without recurrence | Scalable sequence processing |
+| **Ensemble** | Averaged predictions | Combines model strengths | More stable, generalizable output |
 
-### Installation Steps
+---
 
-#### **`macOS`**
-```BASH
-  pyenv local 3.13.3
-  python -m venv .venv
-  source .venv/bin/activate
-  pip install --upgrade pip
-  pip install -r requirements.txt
-  ```
+##  Tracking & Storage
 
-  #### **`WindowsOS`**
- For `PowerShell` CLI :
+| Component | Location / Tool | Contents | Managed by |
+|------------|------------------|-----------|-------------|
+| **Code & Configs** | GitHub Repo (`main` branch) | Python scripts, notebooks, YAMLs | Git |
+| **Datasets** | Google Cloud Storage (GCS) → `gs://time-series-dvc-storage/.dvc/cache` | Versioned raw & processed CSV files | DVC |
+| **Models** | DVC Remote (GCS) | Trained `.keras` model weights | DVC |
+| **Evaluation Reports** | `/reports/metrics.json` | Final metrics (MAE, MSE) | Git |
+| **Experiments** | MLflow (`mlflow.db`) | Logged metrics & artifacts | MLflow |
+| **CI/CD** | `.github/workflows/dvc_pipeline.yml` | Automated training & evaluation | GitHub Actions |
+| **Docker Image** | Google Container Registry (GCR) | Production-ready API container | Docker + GH Actions |
 
-  ```PowerShell
-  pyenv local 3.13.3
-  python -m venv .venv
-  .venv\Scripts\Activate.ps1
-  python -m pip install --upgrade pip
-  pip install -r requirements.txt
-  ```
+---
 
-## Quick Comparison Table
+## Docker Deployment
 
-| Feature | ANN | GRU | LSTM |
-|---------|-----|-----|------|
-| Architecture | Feedforward | Recurrent | Recurrent |
-| Gates | None | 2 (Update, Reset) | 3 (Input, Forget, Output) |
-| Parameters | ~17K | ~35K | ~45K |
-| Input Shape | 2D (samples, features) | 3D (samples, time, features) | 3D (samples, time, features) |
-| Temporal Memory | Manual lags only | Built-in | Built-in (better) |
-| Training Speed | Fastest | Fast | Slower |
-| Best For | Baseline, fast experiments | Medium sequences | Long dependencies |
+The trained models can be deployed as a **FastAPI prediction service** via Docker.
 
-## Usage
+### Local Build & Run
 
-Each notebook contains a detailed implementation and explanation of the respective model architecture.
+```bash
+# Pull models from DVC and build image
+./build_docker.sh
+
+# Run container
+docker run -p 8000:8000 time-series-api:latest
+
+# Test API
+curl http://localhost:8000
+```
+
+### Automatic Build (GitHub Actions)
+
+After successful model training, `.github/workflows/docker-build.yml` automatically:
+1. Pulls trained models from DVC
+2. Builds Docker image
+3. Pushes to Google Container Registry
+
+**Image location**: `europe-west3-docker.pkg.dev/{project}/time-series/time-series-api:latest`
+
+### Cloud Run Deployment (Optional)
+
+Uncomment deployment steps in `docker-build.yml` for automatic Cloud Run deployment.
+
+📖 **Detailed guide**: [DOCKER.md](DOCKER.md)
+
+---
+
+## Project Structure
+
+```
+.
+├── .github/workflows/
+│   ├── dvc_pipeline.yml      # Main: Training pipeline
+│   ├── dvc-ci.yml            # Alternative CI config
+│   └── docker-build.yml      # Docker build & push
+├── models/                    # Model training scripts
+│   ├── ann_model.py
+│   ├── gru_model.py
+│   ├── lstm_model.py
+│   ├── transformer_model.py
+│   └── ensemble_model.py
+├── service/
+│   └── app.py                # FastAPI prediction API
+├── evaluation/
+│   └── evaluate_models.py    # Model evaluation
+├── data/final_data/
+│   └── *.csv.dvc             # DVC-tracked datasets
+├── Dockerfile                # Production container
+├── build_docker.sh           # Local Docker build
+├── dvc.yaml                  # DVC pipeline
+└── requirements.txt          # Dependencies
+```
+
+---
+## pending:
