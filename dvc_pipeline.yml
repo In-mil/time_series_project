@@ -38,7 +38,9 @@ jobs:
 
       - name: Force-pull dataset from GCS before training
         run: |
-          echo "Force pulling dataset..."
+          echo "Pulling dataset .dvc file explicitly..."
+          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote --force -v || (echo "Dataset DVC pull failed"; exit 1)
+          echo "Pulling pipeline outputs..."
           dvc pull -r gcsremote --force -v || (echo "DVC pull failed"; exit 1)
           echo "Checking dataset files..."
           ls -lh data/final_data/ || true
@@ -46,6 +48,7 @@ jobs:
             echo "Dataset missing even after pull – aborting!"
             exit 1
           fi
+          echo "Dataset successfully pulled and verified"
 
       - name: Run all model stages
         run: |
