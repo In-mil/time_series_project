@@ -21,7 +21,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install dvc[gcs] mlflow tensorflow scikit-learn matplotlib pandas numpy joblib
+          pip install dvc dvc-gs mlflow tensorflow scikit-learn matplotlib pandas numpy joblib
 
       - name: Configure GCP credentials
         env:
