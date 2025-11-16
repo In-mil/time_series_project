@@ -18,6 +18,7 @@ venv/
 *.err
 
 #models/
+
 reports/figures/
 .DS_Store
 .vscode/
@@ -217,3 +218,4 @@ cython_debug/
 .pypirc
 >>>>>>> d2557968d0a10066b7f912b662a473f2de3a1adf
 /figures
+echo "models/*.keras" >> .gitignore
