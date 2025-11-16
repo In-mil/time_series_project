@@ -4,6 +4,10 @@
 This script combines predictions from ANN, GRU, LSTM, and Transformer models
 to create an ensemble prediction for crypto price movements.
 """
+import mlflow
+mlflow.set_tracking_uri("http://127.0.0.1:5001")
+mlflow.set_experiment("ensemble_experiment")
+
 import joblib
 from pathlib import Path
 import datetime
@@ -44,6 +48,9 @@ random.seed(SEED)
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 FIG_DIR = REPO_ROOT / "figures" / f"ensemble_run_{timestamp}"
 FIG_DIR.mkdir(parents=True, exist_ok=True)
+
+mlflow.set_tracking_uri("http://127.0.0.1:5001")
+mlflow.set_experiment("ensemble_experiment")
 
 
 def load_and_split_data(
@@ -609,13 +616,26 @@ def main() -> None:
     }
     with open(ensemble_meta_path, "w") as f:
         json.dump(ensemble_meta, f, indent=2)
-
     print(f"\nArtifacts saved to: {ARTIFACTS_DIR}")
-
     print(f"\nAll outputs saved to: {FIG_DIR}")
-    print("\n" + "="*50)
+
+    # MLflow Tracking
+    with mlflow.start_run(run_name=f"ensemble_{timestamp}"):
+        mlflow.log_param("look_back", 20)
+        mlflow.log_param("base_models", model_names)
+        mlflow.log_param("target_column", "future_5_close_higher_than_today")
+
+        # Log metrics
+        for model_name, mae in mae_values.items():
+            mlflow.log_metric(f"{model_name}_MAE", mae)
+
+        # Log artifacts (plots + scalers)
+        mlflow.log_artifacts(str(FIG_DIR), artifact_path="figures")
+        mlflow.log_artifacts(str(ARTIFACTS_DIR), artifact_path="artifacts")
+
+    print("\n" + "=" * 50)
     print("PIPELINE COMPLETE")
-    print("="*50)
+    print("=" * 50)
 
 
 if __name__ == "__main__":

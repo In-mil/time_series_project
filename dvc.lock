@@ -1,0 +1,24 @@
+schema: '2.0'
+stages:
+  train_ensemble:
+    cmd: python models/ensemble_model.py
+    deps:
+    - path: data/final_data/20251115_dataset_crp.csv
+      hash: md5
+      md5: 29258467083f22579c1a59b14125f628
+      size: 287884595
+    - path: models/ensemble_model.py
+      hash: md5
+      md5: 74bbbc079c58ab664c3e26e5baf06bc9
+      size: 19204
+    outs:
+    - path: artifacts/ensemble
+      hash: md5
+      md5: 97bf19f9b4c29b655dfb2ef3330d5d8f.dir
+      size: 5004
+      nfiles: 3
+    - path: figures
+      hash: md5
+      md5: b99722df417ce1e91ed9fc84a1a34cea.dir
+      size: 488800
+      nfiles: 3

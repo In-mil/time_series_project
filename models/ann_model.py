@@ -19,9 +19,16 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Input
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
+import mlflow
+
+mlflow.set_tracking_uri("http://127.0.0.1:5001")
+mlflow.set_experiment("ann_experiment")
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = REPO_ROOT / "data" / "final_data" / "20251115_dataset_crp.csv"
+(REPO_ROOT / "models").mkdir(exist_ok=True)
+
 
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -233,7 +240,27 @@ def main() -> None:
     plt.savefig(FIG_DIR / "residuals.png", bbox_inches="tight")
     plt.close()
 
+    # MLflow Tracking
+    with mlflow.start_run(run_name=f"ann_{timestamp}"):
+        mlflow.log_param("layer_1_nodes", layer_1_nodes)
+        mlflow.log_param("layer_2_nodes", layer_2_nodes)
+        mlflow.log_param("dropout_1", layer_1_dropout)
+        mlflow.log_param("dropout_2", layer_2_dropout)
+        mlflow.log_param("learning_rate", learning_rate)
+        mlflow.log_param("L2_regularization", L2_regularization)
+        mlflow.log_param("epochs", epochs)
+        mlflow.log_param("batch_size", batch_size)
 
+        mlflow.log_metric("train_mae", mae_train)
+        mlflow.log_metric("train_mse", mse_train)
+        mlflow.log_metric("val_mae", val_mae)
+        mlflow.log_metric("val_mse", val_mse)
+        mlflow.log_metric("test_mae_scaled", mae)
+        mlflow.log_metric("test_mse_scaled", mse)
+
+        mlflow.log_artifacts(str(FIG_DIR), artifact_path="figures")
+        ann_model.save(REPO_ROOT / "models" / "model_ann.keras")
+        mlflow.log_artifact(str(REPO_ROOT / "models" / "model_ann.keras"), artifact_path="model")
 
 if __name__ == "__main__":
     main()
