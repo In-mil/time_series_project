@@ -19,24 +19,7 @@ IMAGE_NAME="${IMAGE_NAME:-time-series-api}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 FULL_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
 
-echo -e "${BLUE}Step 1: Pulling models from DVC remote...${NC}"
-if ! dvc pull models/model_ann.keras.dvc \
-             models/model_gru.keras.dvc \
-             models/model_lstm.keras.dvc \
-             models/model_transformer.keras.dvc \
-             models/model_ensemble.json.dvc \
-             artifacts/ensemble.dvc -r gcsremote; then
-    echo -e "${RED}ERROR: Failed to pull models from DVC${NC}"
-    echo "Make sure you have:"
-    echo "  1. DVC configured with gcsremote"
-    echo "  2. Access to GCS bucket"
-    echo "  3. Models pushed to remote (dvc push)"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Models pulled successfully${NC}"
-
-echo -e "${BLUE}Step 2: Verifying required files...${NC}"
+echo -e "${BLUE}Step 1: Checking for required files...${NC}"
 required_files=(
     "models/model_ann.keras"
     "models/model_gru.keras"
@@ -57,8 +40,18 @@ for file in "${required_files[@]}"; do
 done
 
 if [ $missing_files -gt 0 ]; then
-    echo -e "${RED}ERROR: $missing_files required file(s) missing${NC}"
-    exit 1
+    echo -e "${BLUE}Step 2: Pulling missing files from DVC remote...${NC}"
+    if ! dvc pull -r gcsremote --force; then
+        echo -e "${RED}ERROR: Failed to pull models from DVC${NC}"
+        echo "Make sure you have:"
+        echo "  1. DVC configured with gcsremote"
+        echo "  2. Access to GCS bucket"
+        echo "  3. Models pushed to remote (dvc push)"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Models pulled successfully${NC}"
+else
+    echo -e "${GREEN}✓ All required files found locally${NC}"
 fi
 
 echo -e "${BLUE}Step 3: Building Docker image...${NC}"

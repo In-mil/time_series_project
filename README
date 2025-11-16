@@ -40,39 +40,6 @@ The models are trained and versioned with **DVC**, evaluated via **MLflow**, and
 | **CI/CD** | `.github/workflows/dvc_pipeline.yml` | Automated training & evaluation | GitHub Actions |
 | **Docker Image** | Google Container Registry (GCR) | Production-ready API container | Docker + GH Actions |
 
----
-
-## Docker Deployment
-
-The trained models can be deployed as a **FastAPI prediction service** via Docker.
-
-### Local Build & Run
-
-```bash
-# Pull models from DVC and build image
-./build_docker.sh
-
-# Run container
-docker run -p 8000:8000 time-series-api:latest
-
-# Test API
-curl http://localhost:8000
-```
-
-### Automatic Build (GitHub Actions)
-
-After successful model training, `.github/workflows/docker-build.yml` automatically:
-1. Pulls trained models from DVC
-2. Builds Docker image
-3. Pushes to Google Container Registry
-
-**Image location**: `europe-west3-docker.pkg.dev/{project}/time-series/time-series-api:latest`
-
-### Cloud Run Deployment (Optional)
-
-Uncomment deployment steps in `docker-build.yml` for automatic Cloud Run deployment.
-
-📖 **Detailed guide**: [DOCKER.md](DOCKER.md)
 
 ---
 
