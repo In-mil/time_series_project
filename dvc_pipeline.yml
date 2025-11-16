@@ -23,32 +23,43 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install "dvc[gs]" tensorflow==2.15.0 mlflow scikit-learn pandas numpy matplotlib seaborn
+          pip install "dvc[gs]" tensorflow==2.15.0 mlflow scikit-learn pandas numpy matplotlib seaborn google-cloud-storage
 
-      - name: Configure Google Cloud and DVC
+      - name: Configure Google Cloud & DVC
         env:
-          GCP_CREDENTIALS: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          GCP_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
         run: |
-          echo "$GCP_CREDENTIALS" > gcp_creds.json
+          echo "$GCP_KEY" > gcp_creds.json
           gcloud auth activate-service-account --key-file=gcp_creds.json
           dvc remote modify gcsremote credentialpath gcp_creds.json
+          dvc remote default gcsremote
+          mkdir -p .dvc/cache
+          dvc config cache.dir .dvc/cache
 
-      - name: Pull dataset from GCS (force overwrite)
+      - name: Force-pull dataset from GCS before training
         run: |
-          echo "Pulling dataset from GCS..."
-          dvc pull -r gcsremote --force -v
-          echo "Verify dataset exists:"
+          echo "Force pulling dataset..."
+          dvc pull -r gcsremote --force -v || (echo "DVC pull failed"; exit 1)
+          echo "Checking dataset files..."
           ls -lh data/final_data/ || true
-          test -f data/final_data/20251115_dataset_crp.csv || (echo "Dataset missing!"; exit 1)
+          if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
+            echo "Dataset missing even after pull – aborting!"
+            exit 1
+          fi
 
-      - name: Run full DVC pipeline
+      - name: Run all model stages
         run: |
-          echo "Running DVC pipeline..."
-          dvc repro evaluate_models -v
+          echo "Running all model training stages..."
+          dvc repro train_ann -v || exit 1
+          dvc repro train_gru -v || exit 1
+          dvc repro train_lstm -v || exit 1
+          dvc repro train_transformer -v || exit 1
+          dvc repro train_ensemble -v || exit 1
+          dvc repro evaluate_models -v || exit 1
 
       - name: Push updated artifacts and metrics to GCS
         run: |
-          echo "Committing and pushing DVC outputs..."
+          echo "Pushing DVC artifacts..."
           dvc commit evaluate_models || true
           dvc push -r gcsremote -v
 

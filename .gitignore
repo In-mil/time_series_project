@@ -1,35 +1,10 @@
-<<<<<<< HEAD
-# Ignore data/final and other local artifacts
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.so
-*.egg
-*.egg-info/
-.eggs/
-.env
-.venv/
-env/
-venv/
-.ipynb_checkpoints/
-*.log
-*.out
-*.err
-
-#models/
-
-reports/figures/
-.DS_Store
-.vscode/
-.idea/
-=======
 # Data
 data/*
 !data/**/*.dvc
 !data/**/*.gitignore
 docu/*
 GCS_key/*
+
 # Passwords
 passwords.env
 
@@ -39,6 +14,13 @@ passwords.env
 # vim
 *.swp
 *.swo
+
+# IDE
+.vscode/
+.idea/
+
+# Reports
+reports/figures/
 
 ## https://github.com/github/gitignore/blob/e8554d85bf62e38d6db966a50d2064ac025fd82a/Python.gitignore
 
@@ -216,8 +198,10 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
->>>>>>> d2557968d0a10066b7f912b662a473f2de3a1adf
+
+# Figures
 /figures
-echo "models/*.keras"
+
+# Models (tracked by DVC)
 models/*.keras
 models/model_ensemble.json
