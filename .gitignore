@@ -16,12 +16,7 @@ venv/
 *.log
 *.out
 *.err
-data/raw/
-data/interim/
-data/processed/
-data/external/
-data/col_description/
-data/final/
+
 #models/
 reports/figures/
 .DS_Store
@@ -29,8 +24,12 @@ reports/figures/
 .idea/
 =======
 # Data
-/data/final_data
 
+
+/data/final_data
+data/*
+!data/**/*.dvc
+!data/**/*.gitignore
 # Passwords
 passwords.env
 
