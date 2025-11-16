@@ -3,7 +3,6 @@
 
 from pathlib import Path
 import datetime
-import time
 import random
 
 import matplotlib
@@ -11,7 +10,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 import pandas as pd
-import seaborn as sns
 import numpy as np
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
@@ -38,11 +36,20 @@ FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 def main() -> None:
     """Run the ANN modeling pipeline."""
+    # Set random seeds for reproducibility
+    np.random.seed(42)
+    tf.random.set_seed(42)
+    random.seed(42)
+
+    # Error handling for file operations
+    if not DATA_PATH.exists():
+        raise FileNotFoundError(f"Data file not found: {DATA_PATH}")
+
     df_ann = pd.read_csv(DATA_PATH)
 
     split_date_train = "2024-07-01"
     split_date_val = "2024-10-01"
-    split_date_test = "2025-01-01"
+    split_date_test = "2024-10-01"  # Fixed: removed 3-month gap
 
     x_cols_to_drop = [
         "ticker",
@@ -240,6 +247,11 @@ def main() -> None:
     plt.savefig(FIG_DIR / "residuals.png", bbox_inches="tight")
     plt.close()
 
+    # Save model for DVC
+    MODEL_PATH = REPO_ROOT / "models" / "model_ann.keras"
+    ann_model.save(MODEL_PATH)
+    print(f"\nModel saved to: {MODEL_PATH}")
+
     # MLflow Tracking
     with mlflow.start_run(run_name=f"ann_{timestamp}"):
         mlflow.log_param("layer_1_nodes", layer_1_nodes)
@@ -259,8 +271,8 @@ def main() -> None:
         mlflow.log_metric("test_mse_scaled", mse)
 
         mlflow.log_artifacts(str(FIG_DIR), artifact_path="figures")
-        ann_model.save(REPO_ROOT / "models" / "model_ann.keras")
-        mlflow.log_artifact(str(REPO_ROOT / "models" / "model_ann.keras"), artifact_path="model")
+        mlflow.log_artifact(str(MODEL_PATH), artifact_path="model")
+
 
 if __name__ == "__main__":
     main()
