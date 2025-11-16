@@ -18,8 +18,10 @@ from tensorflow.keras.layers import Dense, Dropout, Input
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 import mlflow
+import os
 
-mlflow.set_tracking_uri("http://127.0.0.1:5001")
+# Use environment variable if set, otherwise default to local server
+mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5001"))
 mlflow.set_experiment("ann_experiment")
 
 

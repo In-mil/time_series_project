@@ -5,7 +5,10 @@ This script combines predictions from ANN, GRU, LSTM, and Transformer models
 to create an ensemble prediction for crypto price movements.
 """
 import mlflow
-mlflow.set_tracking_uri("http://127.0.0.1:5001")
+import os
+
+# Use environment variable if set, otherwise default to local server
+mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5001"))
 mlflow.set_experiment("ensemble_experiment")
 
 import joblib

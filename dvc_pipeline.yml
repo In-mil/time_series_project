@@ -49,6 +49,8 @@ jobs:
           echo "Dataset successfully pulled and verified"
 
       - name: Run all model stages
+        env:
+          MLFLOW_TRACKING_URI: file:./mlruns
         run: |
           echo "Running all model training stages..."
           dvc repro train_ann -v || exit 1

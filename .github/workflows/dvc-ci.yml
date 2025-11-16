@@ -55,6 +55,8 @@ jobs:
           echo "Dataset successfully pulled ($(stat -c%s data/final_data/20251115_dataset_crp.csv | numfmt --to=iec-i)B)"
 
       - name: Run all model stages sequentially
+        env:
+          MLFLOW_TRACKING_URI: file:./mlruns
         run: |
           dvc repro train_ann
           dvc repro train_gru
