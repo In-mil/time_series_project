@@ -24,9 +24,6 @@ reports/figures/
 .idea/
 =======
 # Data
-
-
-/data/final_data
 data/*
 !data/**/*.dvc
 !data/**/*.gitignore
