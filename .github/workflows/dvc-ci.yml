@@ -21,7 +21,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install dvc[gcs]
+          pip install dvc[gcs] mlflow tensorflow scikit-learn matplotlib pandas numpy joblib
 
       - name: Configure GCP credentials
         env:
@@ -34,11 +34,17 @@ jobs:
         env:
           GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
         run: |
-          dvc remote add -d gcsremote gs://${GCS_BUCKET_NAME} --force
+          dvc remote add -d gcsremote gs://${GCS_BUCKET_NAME}/.dvc/cache --force
           dvc remote modify gcsremote credentialpath gcp-key.json
 
-      - name: Run DVC pipeline
-        run: dvc repro
+      - name: Pull dataset from GCS
+        run: |
+          dvc pull -r gcsremote -v
 
-      - name: Push data to GCS
-        run: dvc push
+      - name: Run DVC pipeline
+        run: |
+          dvc repro -v
+
+      - name: Push new artifacts to GCS
+        run: |
+          dvc push -r gcsremote -v
