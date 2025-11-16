@@ -199,8 +199,6 @@ def evaluate_model(
     print(f"  MSE (original): {mse_original:.4f}")
 
     return {
-        "MAE_scaled": float(mae_scaled),
-        "MSE_scaled": float(mse_scaled),
         "MAE_original": float(mae_original),
         "MSE_original": float(mse_original)
     }
@@ -281,8 +279,6 @@ def evaluate_ensemble(
     print(f"  MSE (original): {mse_original:.4f}")
 
     return {
-        "MAE_scaled": float(mae_scaled),
-        "MSE_scaled": float(mse_scaled),
         "MAE_original": float(mae_original),
         "MSE_original": float(mse_original),
         "base_models": model_names
@@ -377,6 +373,21 @@ def main():
     print("\n" + "=" * 60)
     print("EVALUATION COMPLETE")
     print("=" * 60)
+    import mlflow
+
+    mlflow.set_tracking_uri("http://127.0.0.1:5001")
+    mlflow.set_experiment("model_evaluation")
+
+    with mlflow.start_run(run_name="evaluation"):
+        mlflow.log_artifact(str(REPORT_PATH))
+        with open(REPORT_PATH, "r") as f:
+            metrics = json.load(f)
+            for model_name, vals in metrics.items():
+                for k, v in vals.items():
+                    if isinstance(v, (int, float)):  # Nur Zahlen loggen
+                        mlflow.log_metric(f"{model_name}_{k}", v)
+                    else:
+                        mlflow.log_param(f"{model_name}_{k}", str(v))  # Listen/Strings als Parameter
 
 
 if __name__ == "__main__":
