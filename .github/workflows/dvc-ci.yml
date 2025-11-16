@@ -37,8 +37,8 @@ jobs:
           dvc remote add -d gcsremote gs://${GCS_BUCKET_NAME}/.dvc/cache --force
           dvc remote modify gcsremote credentialpath gcp-key.json
 
-      - name: Pull dataset from GCS
-        run: dvc pull -r gcsremote -v
+      - name: Pull dataset from GCS (force overwrite)
+        run: dvc pull -r gcsremote --force -v
 
       - name: Run all model stages sequentially
         run: |
