@@ -27,6 +27,8 @@ reports/figures/
 data/*
 !data/**/*.dvc
 !data/**/*.gitignore
+docu/*
+GCS_key/*
 # Passwords
 passwords.env
 

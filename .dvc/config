@@ -1,0 +1,5 @@
+[core]
+    remote = gcsremote
+['remote "gcsremote"']
+    url = gs://time-series-dvc-storage
+    credentialpath = /Users/ina/.config/gcloud/application_default_credentials.json
