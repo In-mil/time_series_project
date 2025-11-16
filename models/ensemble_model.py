@@ -616,7 +616,25 @@ def main() -> None:
     }
     with open(ensemble_meta_path, "w") as f:
         json.dump(ensemble_meta, f, indent=2)
+
+    # Save ensemble configuration as "model" for DVC tracking
+    MODEL_PATH = REPO_ROOT / "models" / "model_ensemble.json"
+    ensemble_config = {
+        "model_type": "ensemble",
+        "base_models": [f"models/model_{name.lower()}.keras" for name in model_names],
+        "averaging_method": "mean",
+        "look_back": 20,
+        "target_column": "future_5_close_higher_than_today",
+        "created_at": datetime.datetime.now().isoformat(),
+        "performance": {
+            model_name: float(mae_val) for model_name, mae_val in mae_values.items()
+        }
+    }
+    with open(MODEL_PATH, "w") as f:
+        json.dump(ensemble_config, f, indent=2)
+
     print(f"\nArtifacts saved to: {ARTIFACTS_DIR}")
+    print(f"Ensemble configuration saved to: {MODEL_PATH}")
     print(f"\nAll outputs saved to: {FIG_DIR}")
 
     # MLflow Tracking

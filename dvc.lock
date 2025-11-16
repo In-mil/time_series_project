@@ -36,7 +36,7 @@ stages:
     outs:
     - path: models/model_ann.keras
       hash: md5
-      md5: 1ac67a3e2d46097b9245e0f733b7c53b
+      md5: fde7d7998aac7c4dc7c37f71521498a7
       size: 235759
   train_lstm:
     cmd: python -u models/lstm_model.py

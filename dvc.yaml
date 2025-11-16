@@ -30,16 +30,15 @@ stages:
       - data/final_data/20251115_dataset_crp.csv
     outs:
       - models/model_transformer.keras
-
   train_ensemble:
     cmd: python -u models/ensemble_model.py
     deps:
-      - data/final_data/20251115_dataset_crp.csv
       - models/ensemble_model.py
       - models/model_ann.keras
       - models/model_gru.keras
       - models/model_lstm.keras
       - models/model_transformer.keras
+      - data/final_data/20251115_dataset_crp.csv
     outs:
+      - models/model_ensemble.json
       - artifacts/ensemble
-      - figures
