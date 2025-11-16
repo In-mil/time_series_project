@@ -2,6 +2,28 @@ version: '3.8'
 
 services:
   # Time Series Prediction API
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-timeseries
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=timeseries
+      - POSTGRES_PASSWORD=timeseries123
+      - POSTGRES_DB=predictions
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U timeseries"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   api:
     build:
       context: .
@@ -11,6 +33,7 @@ services:
       - "8000:8000"
     environment:
       - ENABLE_METRICS=true
+      - DATABASE_URL=postgresql://timeseries:timeseries123@postgres:5432/predictions
     networks:
       - monitoring
     healthcheck:
@@ -19,6 +42,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   # Prometheus
   prometheus:
@@ -69,3 +95,4 @@ networks:
 volumes:
   prometheus-data:
   grafana-data:
+  postgres-data:

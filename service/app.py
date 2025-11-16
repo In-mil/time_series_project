@@ -1,13 +1,15 @@
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 import numpy as np
 import joblib
 from pathlib import Path
 from tensorflow.keras.models import load_model
 import time
+import uuid
 from prometheus_client import Counter, Histogram, Gauge, make_asgi_app
 from prometheus_fastapi_instrumentator import Instrumentator
+from . import database
 
 app = FastAPI(
     title="Time Series Prediction API",
@@ -87,11 +89,37 @@ class EnsembleResponse(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "ok"}
+    return {"status": "ok", "database_enabled": database.DB_ENABLED}
+
+
+@app.get("/analytics/recent")
+def get_recent_predictions(limit: int = 100):
+    """Get recent predictions from database"""
+    predictions = database.get_recent_predictions(limit=limit)
+    return {"predictions": predictions, "count": len(predictions)}
+
+
+@app.get("/analytics/performance")
+def get_performance_metrics():
+    """Get aggregated model performance metrics"""
+    metrics = database.get_model_performance()
+    if metrics is None:
+        return {"error": "No data available or database disabled"}
+    return metrics
+
+
+@app.post("/analytics/update/{prediction_id}")
+def update_prediction_actual(prediction_id: int, actual_value: float):
+    """Update the actual value for a prediction (for drift detection)"""
+    success = database.update_actual_value(prediction_id, actual_value)
+    return {"success": success, "prediction_id": prediction_id}
 
 
 @app.post("/predict", response_model=EnsembleResponse)
 def predict(request: SequenceRequest):
+    # Generate request ID for tracking
+    request_id = str(uuid.uuid4())
+
     seq = np.array(request.sequence, dtype=float)  # Shape (T, n_features)
 
     # Validierung der Länge
@@ -106,9 +134,14 @@ def predict(request: SequenceRequest):
     # ANN bekommt den letzten Zeitschritt (wie ein „normaler" Sample)
     x_last_scaled = seq_scaled[-1].reshape(1, -1)  # (1, n_features)
 
+    # Track latencies in ms
+    latencies = {}
+
     start_time = time.time()
     pred_ann_scaled = model_ann.predict(x_last_scaled, verbose=0)[0][0]
-    PREDICTION_LATENCY.labels(model='ann').observe(time.time() - start_time)
+    latency_ann = (time.time() - start_time) * 1000
+    latencies['ann'] = latency_ann
+    PREDICTION_LATENCY.labels(model='ann').observe(latency_ann / 1000)
     PREDICTION_COUNTER.labels(model='ann').inc()
 
     # RNN-Modelle bekommen die gesamte Sequenz
@@ -116,17 +149,23 @@ def predict(request: SequenceRequest):
 
     start_time = time.time()
     pred_gru_scaled = model_gru.predict(seq_scaled_rnn, verbose=0)[0][0]
-    PREDICTION_LATENCY.labels(model='gru').observe(time.time() - start_time)
+    latency_gru = (time.time() - start_time) * 1000
+    latencies['gru'] = latency_gru
+    PREDICTION_LATENCY.labels(model='gru').observe(latency_gru / 1000)
     PREDICTION_COUNTER.labels(model='gru').inc()
 
     start_time = time.time()
     pred_lstm_scaled = model_lstm.predict(seq_scaled_rnn, verbose=0)[0][0]
-    PREDICTION_LATENCY.labels(model='lstm').observe(time.time() - start_time)
+    latency_lstm = (time.time() - start_time) * 1000
+    latencies['lstm'] = latency_lstm
+    PREDICTION_LATENCY.labels(model='lstm').observe(latency_lstm / 1000)
     PREDICTION_COUNTER.labels(model='lstm').inc()
 
     start_time = time.time()
     pred_trf_scaled = model_trf.predict(seq_scaled_rnn, verbose=0)[0][0]
-    PREDICTION_LATENCY.labels(model='transformer').observe(time.time() - start_time)
+    latency_transformer = (time.time() - start_time) * 1000
+    latencies['transformer'] = latency_transformer
+    PREDICTION_LATENCY.labels(model='transformer').observe(latency_transformer / 1000)
     PREDICTION_COUNTER.labels(model='transformer').inc()
 
     # Ensemble im skalierten Raum
@@ -152,6 +191,27 @@ def predict(request: SequenceRequest):
     PREDICTION_VALUE.labels(model='lstm').set(lstm_original)
     PREDICTION_VALUE.labels(model='transformer').set(trf_original)
     PREDICTION_COUNTER.labels(model='ensemble').inc()
+
+    # Log to database (async, non-blocking)
+    predictions = {
+        'ann': float(ann_original),
+        'gru': float(gru_original),
+        'lstm': float(lstm_original),
+        'transformer': float(trf_original),
+        'ensemble': float(ensemble_original)
+    }
+
+    try:
+        database.log_prediction(
+            input_sequence=request.sequence,
+            predictions=predictions,
+            latencies=latencies,
+            request_id=request_id,
+            model_version="1.0.0"
+        )
+    except Exception as e:
+        # Log error but don't fail the prediction
+        print(f"Database logging failed: {e}")
 
     return EnsembleResponse(
         prediction=float(ensemble_original),
