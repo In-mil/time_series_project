@@ -21,8 +21,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install "dvc[gs]"==3.64.0 mlflow tensorflow scikit-learn matplotlib pandas numpy joblib
-          pip show dvc-gs || pip install dvc-gs
+          pip install "dvc[gs]"==3.64.0 mlflow tensorflow scikit-learn matplotlib pandas numpy joblib seaborn
 
       - name: Configure GCP credentials
         env:
@@ -39,13 +38,15 @@ jobs:
           dvc remote modify gcsremote credentialpath gcp-key.json
 
       - name: Pull dataset from GCS
-        run: |
-          dvc pull -r gcsremote -v
+        run: dvc pull -r gcsremote -v
 
-      - name: Run DVC pipeline
+      - name: Run all model stages sequentially
         run: |
-          dvc repro -v
+          dvc repro train_ann
+          dvc repro train_gru
+          dvc repro train_lstm
+          dvc repro train_transformer
+          dvc repro train_ensemble
 
       - name: Push new artifacts to GCS
-        run: |
-          dvc push -r gcsremote -v
+        run: dvc push -r gcsremote -v
