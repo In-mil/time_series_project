@@ -64,12 +64,11 @@ jobs:
 
           echo "Pulling dataset from remote storage..."
 
-          # Clear any existing DVC cache to force fresh pull
-          rm -rf .dvc/cache
+          # Remove working directory file to force DVC to re-checkout
+          rm -f data/final_data/20251115_dataset_crp.csv
 
-          # Pull and then explicitly checkout
-          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote -v
-          dvc checkout data/final_data/20251115_dataset_crp.csv.dvc --force
+          # Pull will fetch from remote and checkout to working directory
+          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote --force -v
 
           # Verify dataset exists
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
@@ -80,17 +79,19 @@ jobs:
 
           echo "✅ Dataset verified: $(du -h data/final_data/20251115_dataset_crp.csv | cut -f1)"
 
-          # Pull model artifacts (if available) - run in background for speed
+          # Pull model artifacts (if available) in parallel
           echo "Pulling model artifacts in parallel..."
-          (dvc pull models/model_ann.keras.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_ann.keras.dvc --force 2>/dev/null) || echo "⚠ ANN model not in remote" &
-          (dvc pull models/model_gru.keras.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_gru.keras.dvc --force 2>/dev/null) || echo "⚠ GRU model not in remote" &
-          (dvc pull models/model_lstm.keras.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_lstm.keras.dvc --force 2>/dev/null) || echo "⚠ LSTM model not in remote" &
-          (dvc pull models/model_transformer.keras.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_transformer.keras.dvc --force 2>/dev/null) || echo "⚠ Transformer model not in remote" &
-          (dvc pull models/model_ensemble.json.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_ensemble.json.dvc --force 2>/dev/null) || echo "⚠ Ensemble model not in remote" &
-          (dvc pull artifacts/ensemble.dvc -r gcsremote 2>/dev/null && dvc checkout artifacts/ensemble.dvc --force 2>/dev/null) || echo "⚠ Ensemble artifacts not in remote" &
-          (dvc pull reports/metrics.json.dvc -r gcsremote 2>/dev/null && dvc checkout reports/metrics.json.dvc --force 2>/dev/null) || echo "⚠ Metrics not in remote" &
 
-          # Wait for all parallel pulls to complete
+          # Remove existing files to force re-checkout, then pull
+          (rm -f models/model_ann.keras && dvc pull models/model_ann.keras.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ ANN model not in remote" &
+          (rm -f models/model_gru.keras && dvc pull models/model_gru.keras.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ GRU model not in remote" &
+          (rm -f models/model_lstm.keras && dvc pull models/model_lstm.keras.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ LSTM model not in remote" &
+          (rm -f models/model_transformer.keras && dvc pull models/model_transformer.keras.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ Transformer model not in remote" &
+          (rm -f models/model_ensemble.json && dvc pull models/model_ensemble.json.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ Ensemble model not in remote" &
+          (rm -rf artifacts/ensemble && dvc pull artifacts/ensemble.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ Ensemble artifacts not in remote" &
+          (rm -f reports/metrics.json && dvc pull reports/metrics.json.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ Metrics not in remote" &
+
+          # Wait for all parallel pulls
           wait
 
           echo "✅ All available artifacts pulled"
