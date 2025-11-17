@@ -64,43 +64,55 @@ jobs:
 
           echo "Pulling dataset from remote storage..."
 
-          # Two-step process: fetch (downloads to cache) + checkout (copies to working dir)
-          # This is more reliable than 'dvc pull' which skips when it thinks things are up-to-date
+          # DVC is unreliable in CI - use gsutil directly
+          # Parse MD5 hash from .dvc file
+          HASH=$(grep 'md5:' data/final_data/20251115_dataset_crp.csv.dvc | awk '{print $2}')
+          echo "Dataset hash: $HASH"
 
-          echo "Step 1: Fetching to cache..."
-          dvc fetch data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote -v
+          # Download directly from GCS using hash-based path
+          # DVC stores files as: gs://bucket/.dvc/cache/files/md5/XX/YYYYYYYY
+          PREFIX="${HASH:0:2}"
+          SUFFIX="${HASH:2}"
+          GCS_PATH="gs://time-series-dvc-storage/.dvc/cache/files/md5/${PREFIX}/${SUFFIX}"
 
-          echo "Step 2: Checking out to working directory..."
-          dvc checkout data/final_data/20251115_dataset_crp.csv.dvc --force -v
+          echo "Downloading from: $GCS_PATH"
+          gsutil -m cp "$GCS_PATH" data/final_data/20251115_dataset_crp.csv
 
           # Verify dataset exists
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
-            echo "❌ Dataset missing after fetch+checkout!"
-            echo "Cache status:"
-            find .dvc/cache -type f -ls 2>/dev/null | head -5 || echo "No cache files"
-            echo "Working directory status:"
+            echo "❌ Dataset missing after download!"
             ls -lh data/final_data/
             exit 1
           fi
 
           echo "✅ Dataset verified: $(du -h data/final_data/20251115_dataset_crp.csv | cut -f1)"
 
-          # Fetch model artifacts in parallel (if available)
-          echo "Fetching model artifacts in parallel..."
+          # Download model artifacts in parallel using gsutil (bypassing DVC)
+          echo "Downloading model artifacts in parallel..."
 
-          # Use fetch + checkout strategy for reliability
-          (dvc fetch models/model_ann.keras.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_ann.keras.dvc --force 2>/dev/null) || echo "⚠ ANN model not in remote" &
-          (dvc fetch models/model_gru.keras.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_gru.keras.dvc --force 2>/dev/null) || echo "⚠ GRU model not in remote" &
-          (dvc fetch models/model_lstm.keras.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_lstm.keras.dvc --force 2>/dev/null) || echo "⚠ LSTM model not in remote" &
-          (dvc fetch models/model_transformer.keras.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_transformer.keras.dvc --force 2>/dev/null) || echo "⚠ Transformer model not in remote" &
-          (dvc fetch models/model_ensemble.json.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_ensemble.json.dvc --force 2>/dev/null) || echo "⚠ Ensemble model not in remote" &
-          (dvc fetch artifacts/ensemble.dvc -r gcsremote 2>/dev/null && dvc checkout artifacts/ensemble.dvc --force 2>/dev/null) || echo "⚠ Ensemble artifacts not in remote" &
-          (dvc fetch reports/metrics.json.dvc -r gcsremote 2>/dev/null && dvc checkout reports/metrics.json.dvc --force 2>/dev/null) || echo "⚠ Metrics not in remote" &
+          # Download each artifact in parallel
+          for artifact in "models/model_ann.keras" "models/model_gru.keras" "models/model_lstm.keras" "models/model_transformer.keras" "models/model_ensemble.json"; do
+            (
+              DVC_FILE="${artifact}.dvc"
+              if [ -f "$DVC_FILE" ]; then
+                HASH=$(grep 'md5:' "$DVC_FILE" 2>/dev/null | awk '{print $2}')
+                if [ -n "$HASH" ]; then
+                  PREFIX="${HASH:0:2}"
+                  SUFFIX="${HASH:2}"
+                  gsutil -m cp "gs://time-series-dvc-storage/.dvc/cache/files/md5/${PREFIX}/${SUFFIX}" "$artifact" 2>/dev/null && \
+                    echo "✓ Downloaded $(basename $artifact)" || \
+                    echo "⚠ $(basename $artifact) not in remote"
+                fi
+              else
+                echo "⚠ $(basename $DVC_FILE) not tracked"
+              fi
+            ) &
+          done
 
-          # Wait for all parallel operations
+          # Wait for all downloads
           wait
 
-          echo "✅ All available artifacts fetched and checked out"
+          echo "✅ All available artifacts downloaded"
 
       - name: Check pipeline status
         id: dvc-status
