@@ -51,7 +51,16 @@ jobs:
           GCP_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
         run: |
           echo "$GCP_KEY" > gcp_creds.json
-          gcloud auth activate-service-account --key-file=gcp_creds.json
+
+          # Activate service account and verify
+          if ! gcloud auth activate-service-account --key-file=gcp_creds.json; then
+            echo "❌ Failed to authenticate with Google Cloud"
+            exit 1
+          fi
+
+          echo "✅ GCloud authenticated successfully"
+
+          # Configure DVC
           dvc remote modify gcsremote credentialpath gcp_creds.json
           dvc remote default gcsremote
           mkdir -p .dvc/cache
@@ -59,47 +68,66 @@ jobs:
 
       - name: Pull dataset & models from GCS
         run: |
-          echo "Pulling dataset from remote storage..."
-          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote -v
+          echo "Fetching dataset from remote storage..."
 
-          # Force checkout to ensure file is in working directory (not just in cache)
-          echo "Checking out dataset from cache..."
+          # Use fetch + checkout strategy (more reliable than pull when cache exists)
+          dvc fetch data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote -v
           dvc checkout data/final_data/20251115_dataset_crp.csv.dvc --force
+
+          # Verify dataset exists, if not try force pull as fallback
+          if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
+            echo "⚠️  Checkout failed, trying force pull..."
+            dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote --force -v
+          fi
 
           echo "Verifying dataset exists..."
           ls -lh data/final_data/
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
-            echo "❌ Dataset missing after pull and checkout – aborting!"
+            echo "❌ Dataset missing after fetch/pull – aborting!"
+            echo "Cache might be corrupted. Try clearing GitHub Actions cache."
             exit 1
           fi
 
           echo "✅ Dataset verified: $(ls -lh data/final_data/20251115_dataset_crp.csv | awk '{print $5}')"
 
           echo "Pulling model artifacts (if available)..."
-          dvc pull models/model_ann.keras.dvc -r gcsremote -v 2>/dev/null && dvc checkout models/model_ann.keras.dvc --force 2>/dev/null || echo "⚠ ANN model not in remote yet"
-          dvc pull models/model_gru.keras.dvc -r gcsremote -v 2>/dev/null && dvc checkout models/model_gru.keras.dvc --force 2>/dev/null || echo "⚠ GRU model not in remote yet"
-          dvc pull models/model_lstm.keras.dvc -r gcsremote -v 2>/dev/null && dvc checkout models/model_lstm.keras.dvc --force 2>/dev/null || echo "⚠ LSTM model not in remote yet"
-          dvc pull models/model_transformer.keras.dvc -r gcsremote -v 2>/dev/null && dvc checkout models/model_transformer.keras.dvc --force 2>/dev/null || echo "⚠ Transformer model not in remote yet"
-          dvc pull models/model_ensemble.json.dvc -r gcsremote -v 2>/dev/null && dvc checkout models/model_ensemble.json.dvc --force 2>/dev/null || echo "⚠ Ensemble model not in remote yet"
-          dvc pull artifacts/ensemble.dvc -r gcsremote -v 2>/dev/null && dvc checkout artifacts/ensemble.dvc --force 2>/dev/null || echo "⚠ Ensemble artifacts not in remote yet"
-          dvc pull reports/metrics.json.dvc -r gcsremote -v 2>/dev/null && dvc checkout reports/metrics.json.dvc --force 2>/dev/null || echo "⚠ Metrics not in remote yet"
+          # Use fetch + checkout strategy for models too
+          for artifact in models/model_ann.keras models/model_gru.keras models/model_lstm.keras models/model_transformer.keras models/model_ensemble.json artifacts/ensemble reports/metrics.json; do
+            if [ -f "${artifact}.dvc" ]; then
+              echo "Fetching ${artifact}..."
+              dvc fetch "${artifact}.dvc" -r gcsremote 2>/dev/null && \
+              dvc checkout "${artifact}.dvc" --force 2>/dev/null || \
+              dvc pull "${artifact}.dvc" -r gcsremote --force 2>/dev/null || \
+              echo "⚠ ${artifact} not available in remote"
+            fi
+          done
 
-          echo "✅ All artifacts pulled and checked out successfully"
+          echo "✅ All available artifacts pulled and checked out"
 
       - name: Check pipeline status
         id: dvc-status
         run: |
           echo "Checking which stages need to be run..."
-          STATUS_OUTPUT=$(dvc status 2>&1)
-          echo "$STATUS_OUTPUT"
 
-          # Check if pipeline is up to date
-          if echo "$STATUS_OUTPUT" | grep -q "Data and pipelines are up to date"; then
-            echo "pipeline_changed=false" >> $GITHUB_OUTPUT
-            echo "✅ Pipeline is up to date - no training needed"
+          # Run dvc status and capture both output and exit code
+          if STATUS_OUTPUT=$(dvc status 2>&1); then
+            echo "$STATUS_OUTPUT"
+
+            # Check if pipeline is up to date
+            if echo "$STATUS_OUTPUT" | grep -q "Data and pipelines are up to date"; then
+              echo "pipeline_changed=false" >> $GITHUB_OUTPUT
+              echo "✅ Pipeline is up to date - no training needed"
+            else
+              echo "pipeline_changed=true" >> $GITHUB_OUTPUT
+              echo "⚠️  Pipeline changes detected - training will run"
+              echo "Changes:"
+              echo "$STATUS_OUTPUT"
+            fi
           else
+            # DVC status failed - assume we need to run pipeline
+            echo "⚠️  DVC status check failed, assuming changes exist"
+            echo "$STATUS_OUTPUT"
             echo "pipeline_changed=true" >> $GITHUB_OUTPUT
-            echo "⚠️  Pipeline changes detected - training will run"
           fi
 
       - name: Run pipeline (smart parallel training with DVC)
