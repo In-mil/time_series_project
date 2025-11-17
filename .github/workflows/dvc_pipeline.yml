@@ -32,14 +32,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-venv-
 
-      - name: Cache DVC
-        uses: actions/cache@v4
-        with:
-          path: .dvc/cache
-          key: ${{ runner.os }}-dvc-${{ hashFiles('**/*.dvc', 'dvc.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-dvc-
-
       - name: Install dependencies
         if: steps.venv-cache.outputs.cache-hit != 'true'
         run: |
@@ -50,6 +42,8 @@ jobs:
         env:
           GCP_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
         run: |
+          set -euo pipefail
+
           echo "$GCP_KEY" > gcp_creds.json
 
           # Activate service account and verify
@@ -60,53 +54,46 @@ jobs:
 
           echo "✅ GCloud authenticated successfully"
 
-          # Configure DVC
+          # Configure DVC (no local cache to avoid state inconsistencies)
           dvc remote modify gcsremote credentialpath gcp_creds.json
           dvc remote default gcsremote
-          mkdir -p .dvc/cache
-          dvc config cache.dir .dvc/cache
 
       - name: Pull dataset & models from GCS
         run: |
-          echo "Fetching dataset from remote storage..."
+          set -euo pipefail
 
-          # Use fetch + checkout strategy (more reliable than pull when cache exists)
-          dvc fetch data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote -v
-          dvc checkout data/final_data/20251115_dataset_crp.csv.dvc --force
+          echo "Pulling dataset from remote storage..."
+          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote --force -v
 
-          # Verify dataset exists, if not try force pull as fallback
+          # Verify dataset exists
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
-            echo "⚠️  Checkout failed, trying force pull..."
-            dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote --force -v
-          fi
-
-          echo "Verifying dataset exists..."
-          ls -lh data/final_data/
-          if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
-            echo "❌ Dataset missing after fetch/pull – aborting!"
-            echo "Cache might be corrupted. Try clearing GitHub Actions cache."
+            echo "❌ Dataset missing after pull!"
+            ls -lh data/final_data/
             exit 1
           fi
 
-          echo "✅ Dataset verified: $(ls -lh data/final_data/20251115_dataset_crp.csv | awk '{print $5}')"
+          echo "✅ Dataset verified: $(du -h data/final_data/20251115_dataset_crp.csv | cut -f1)"
 
-          echo "Pulling model artifacts (if available)..."
-          # Use fetch + checkout strategy for models too
-          for artifact in models/model_ann.keras models/model_gru.keras models/model_lstm.keras models/model_transformer.keras models/model_ensemble.json artifacts/ensemble reports/metrics.json; do
-            if [ -f "${artifact}.dvc" ]; then
-              echo "Fetching ${artifact}..."
-              dvc fetch "${artifact}.dvc" -r gcsremote 2>/dev/null && \
-              dvc checkout "${artifact}.dvc" --force 2>/dev/null || \
-              dvc pull "${artifact}.dvc" -r gcsremote --force 2>/dev/null || \
-              echo "⚠ ${artifact} not available in remote"
-            fi
-          done
+          # Pull model artifacts (if available) - run in background for speed
+          echo "Pulling model artifacts in parallel..."
+          dvc pull models/model_ann.keras.dvc -r gcsremote --force 2>/dev/null || echo "⚠ ANN model not in remote" &
+          dvc pull models/model_gru.keras.dvc -r gcsremote --force 2>/dev/null || echo "⚠ GRU model not in remote" &
+          dvc pull models/model_lstm.keras.dvc -r gcsremote --force 2>/dev/null || echo "⚠ LSTM model not in remote" &
+          dvc pull models/model_transformer.keras.dvc -r gcsremote --force 2>/dev/null || echo "⚠ Transformer model not in remote" &
+          dvc pull models/model_ensemble.json.dvc -r gcsremote --force 2>/dev/null || echo "⚠ Ensemble model not in remote" &
+          dvc pull artifacts/ensemble.dvc -r gcsremote --force 2>/dev/null || echo "⚠ Ensemble artifacts not in remote" &
+          dvc pull reports/metrics.json.dvc -r gcsremote --force 2>/dev/null || echo "⚠ Metrics not in remote" &
 
-          echo "✅ All available artifacts pulled and checked out"
+          # Wait for all parallel pulls to complete
+          wait
+
+          echo "✅ All available artifacts pulled"
 
       - name: Check pipeline status
         id: dvc-status
         run: |
+          set -eo pipefail  # Note: no 'u' here because we check if vars are set
+
           echo "Checking which stages need to be run..."
 
           # Run dvc status and capture both output and exit code
@@ -135,6 +122,8 @@ jobs:
         env:
           MLFLOW_TRACKING_URI: file:./mlruns
         run: |
+          set -euo pipefail
+
           echo "==================================="
           echo "Starting DVC pipeline..."
           echo "==================================="
@@ -155,6 +144,8 @@ jobs:
       - name: Push updated artifacts and metrics to GCS
         if: steps.dvc-status.outputs.pipeline_changed == 'true'
         run: |
+          set -euo pipefail
+
           echo "Pushing DVC artifacts..."
           dvc commit evaluate_models || true
           dvc push -r gcsremote -v
