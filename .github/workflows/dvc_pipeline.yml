@@ -64,37 +64,43 @@ jobs:
 
           echo "Pulling dataset from remote storage..."
 
-          # Remove working directory file to force DVC to re-checkout
-          rm -f data/final_data/20251115_dataset_crp.csv
+          # Two-step process: fetch (downloads to cache) + checkout (copies to working dir)
+          # This is more reliable than 'dvc pull' which skips when it thinks things are up-to-date
 
-          # Pull will fetch from remote and checkout to working directory
-          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote --force -v
+          echo "Step 1: Fetching to cache..."
+          dvc fetch data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote -v
+
+          echo "Step 2: Checking out to working directory..."
+          dvc checkout data/final_data/20251115_dataset_crp.csv.dvc --force -v
 
           # Verify dataset exists
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
-            echo "❌ Dataset missing after pull!"
+            echo "❌ Dataset missing after fetch+checkout!"
+            echo "Cache status:"
+            find .dvc/cache -type f -ls 2>/dev/null | head -5 || echo "No cache files"
+            echo "Working directory status:"
             ls -lh data/final_data/
             exit 1
           fi
 
           echo "✅ Dataset verified: $(du -h data/final_data/20251115_dataset_crp.csv | cut -f1)"
 
-          # Pull model artifacts (if available) in parallel
-          echo "Pulling model artifacts in parallel..."
+          # Fetch model artifacts in parallel (if available)
+          echo "Fetching model artifacts in parallel..."
 
-          # Remove existing files to force re-checkout, then pull
-          (rm -f models/model_ann.keras && dvc pull models/model_ann.keras.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ ANN model not in remote" &
-          (rm -f models/model_gru.keras && dvc pull models/model_gru.keras.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ GRU model not in remote" &
-          (rm -f models/model_lstm.keras && dvc pull models/model_lstm.keras.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ LSTM model not in remote" &
-          (rm -f models/model_transformer.keras && dvc pull models/model_transformer.keras.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ Transformer model not in remote" &
-          (rm -f models/model_ensemble.json && dvc pull models/model_ensemble.json.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ Ensemble model not in remote" &
-          (rm -rf artifacts/ensemble && dvc pull artifacts/ensemble.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ Ensemble artifacts not in remote" &
-          (rm -f reports/metrics.json && dvc pull reports/metrics.json.dvc -r gcsremote --force 2>/dev/null) || echo "⚠ Metrics not in remote" &
+          # Use fetch + checkout strategy for reliability
+          (dvc fetch models/model_ann.keras.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_ann.keras.dvc --force 2>/dev/null) || echo "⚠ ANN model not in remote" &
+          (dvc fetch models/model_gru.keras.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_gru.keras.dvc --force 2>/dev/null) || echo "⚠ GRU model not in remote" &
+          (dvc fetch models/model_lstm.keras.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_lstm.keras.dvc --force 2>/dev/null) || echo "⚠ LSTM model not in remote" &
+          (dvc fetch models/model_transformer.keras.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_transformer.keras.dvc --force 2>/dev/null) || echo "⚠ Transformer model not in remote" &
+          (dvc fetch models/model_ensemble.json.dvc -r gcsremote 2>/dev/null && dvc checkout models/model_ensemble.json.dvc --force 2>/dev/null) || echo "⚠ Ensemble model not in remote" &
+          (dvc fetch artifacts/ensemble.dvc -r gcsremote 2>/dev/null && dvc checkout artifacts/ensemble.dvc --force 2>/dev/null) || echo "⚠ Ensemble artifacts not in remote" &
+          (dvc fetch reports/metrics.json.dvc -r gcsremote 2>/dev/null && dvc checkout reports/metrics.json.dvc --force 2>/dev/null) || echo "⚠ Metrics not in remote" &
 
-          # Wait for all parallel pulls
+          # Wait for all parallel operations
           wait
 
-          echo "✅ All available artifacts pulled"
+          echo "✅ All available artifacts fetched and checked out"
 
       - name: Check pipeline status
         id: dvc-status
