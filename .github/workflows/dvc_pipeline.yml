@@ -56,10 +56,12 @@ jobs:
 
       - name: Pull dataset & models from GCS
         run: |
-          echo "Pulling all artifacts from remote storage..."
+          echo "Pulling dataset from remote storage..."
+          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote -v
+          echo "Pulling all other artifacts..."
           dvc pull -r gcsremote --force -v || echo "Some artifacts not yet in remote, will be generated"
           echo "Verifying dataset file exists..."
-          ls -lh data/final_data/ || true
+          ls -lh data/final_data/
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
             echo "Dataset missing after pull – aborting!"
             exit 1
