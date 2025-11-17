@@ -58,15 +58,24 @@ jobs:
         run: |
           echo "Pulling dataset from remote storage..."
           dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote -v
-          echo "Pulling all other artifacts..."
-          dvc pull -r gcsremote --force -v || echo "Some artifacts not yet in remote, will be generated"
-          echo "Verifying dataset file exists..."
+
+          echo "Verifying dataset exists..."
           ls -lh data/final_data/
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
             echo "Dataset missing after pull – aborting!"
             exit 1
           fi
-          echo "All artifacts pulled and verified successfully"
+
+          echo "Pulling model artifacts (if available)..."
+          dvc pull models/model_ann.keras.dvc -r gcsremote -v 2>/dev/null || echo "ANN model not in remote yet"
+          dvc pull models/model_gru.keras.dvc -r gcsremote -v 2>/dev/null || echo "GRU model not in remote yet"
+          dvc pull models/model_lstm.keras.dvc -r gcsremote -v 2>/dev/null || echo "LSTM model not in remote yet"
+          dvc pull models/model_transformer.keras.dvc -r gcsremote -v 2>/dev/null || echo "Transformer model not in remote yet"
+          dvc pull models/model_ensemble.json.dvc -r gcsremote -v 2>/dev/null || echo "Ensemble model not in remote yet"
+          dvc pull artifacts/ensemble.dvc -r gcsremote -v 2>/dev/null || echo "Ensemble artifacts not in remote yet"
+          dvc pull reports/metrics.json.dvc -r gcsremote -v 2>/dev/null || echo "Metrics not in remote yet"
+
+          echo "All artifacts pulled successfully"
 
       - name: Check pipeline status
         run: |
