@@ -2,6 +2,7 @@
 """Evaluate all trained models on the test set."""
 
 import json
+import os
 import random
 from pathlib import Path
 from typing import Dict, Tuple
@@ -373,21 +374,34 @@ def main():
     print("\n" + "=" * 60)
     print("EVALUATION COMPLETE")
     print("=" * 60)
-    import mlflow
 
-    mlflow.set_tracking_uri("http://127.0.0.1:5001")
-    mlflow.set_experiment("model_evaluation")
+    # Log to MLflow if available
+    try:
+        import mlflow
 
-    with mlflow.start_run(run_name="evaluation"):
-        mlflow.log_artifact(str(REPORT_PATH))
-        with open(REPORT_PATH, "r") as f:
-            metrics = json.load(f)
-            for model_name, vals in metrics.items():
-                for k, v in vals.items():
-                    if isinstance(v, (int, float)):  # Nur Zahlen loggen
-                        mlflow.log_metric(f"{model_name}_{k}", v)
-                    else:
-                        mlflow.log_param(f"{model_name}_{k}", str(v))  # Listen/Strings als Parameter
+        # Respect MLFLOW_TRACKING_URI environment variable (used in CI)
+        # If not set, use local server as fallback
+        tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5001")
+        mlflow.set_tracking_uri(tracking_uri)
+        mlflow.set_experiment("model_evaluation")
+
+        print(f"\nLogging to MLflow at: {tracking_uri}")
+
+        with mlflow.start_run(run_name="evaluation"):
+            mlflow.log_artifact(str(REPORT_PATH))
+            with open(REPORT_PATH, "r") as f:
+                metrics = json.load(f)
+                for model_name, vals in metrics.items():
+                    for k, v in vals.items():
+                        if isinstance(v, (int, float)):  # Only log numbers as metrics
+                            mlflow.log_metric(f"{model_name}_{k}", v)
+                        else:
+                            mlflow.log_param(f"{model_name}_{k}", str(v))  # Log lists/strings as params
+
+        print("✓ MLflow logging completed")
+    except Exception as e:
+        print(f"⚠ MLflow logging skipped: {e}")
+        print("  (This is expected in CI environments without MLflow server)")
 
 
 if __name__ == "__main__":
