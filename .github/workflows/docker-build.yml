@@ -111,7 +111,7 @@ jobs:
           service: time-series-api
           region: ${{ env.GCP_REGION }}
           image: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/time-series/${{ env.IMAGE_NAME }}:latest
-          flags: '--allow-unauthenticated --memory=2Gi --cpu=2 --min-instances=0 --max-instances=3 --port=8000'
+          flags: '--allow-unauthenticated --memory=4Gi --cpu=2 --timeout=300 --min-instances=1 --max-instances=3 --port=8000'
 
       - name: Show deployment URL
         run: |

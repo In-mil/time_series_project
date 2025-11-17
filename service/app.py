@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import numpy as np
@@ -7,9 +7,17 @@ from pathlib import Path
 from tensorflow.keras.models import load_model
 import time
 import uuid
+import logging
 from prometheus_client import Counter, Histogram, Gauge, make_asgi_app
 from prometheus_fastapi_instrumentator import Instrumentator
 from . import database
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Time Series Prediction API",
@@ -119,106 +127,149 @@ def update_prediction_actual(prediction_id: int, actual_value: float):
 def predict(request: SequenceRequest):
     # Generate request ID for tracking
     request_id = str(uuid.uuid4())
-
-    seq = np.array(request.sequence, dtype=float)  # Shape (T, n_features)
-
-    # Validierung der Länge
-    if seq.shape[0] != LOOK_BACK:
-        INPUT_VALIDATION_ERRORS.inc()
-        raise ValueError(f"Expected sequence length {LOOK_BACK}, got {seq.shape[0]}")
-
-    # Skalierung wie im Training: scaler_X wurde auf (n_samples, n_features) gefittet,
-    # wir geben ihm hier (LOOK_BACK, n_features)
-    seq_scaled = scaler_X.transform(seq)  # (LOOK_BACK, n_features)
-
-    # ANN bekommt den letzten Zeitschritt (wie ein „normaler" Sample)
-    x_last_scaled = seq_scaled[-1].reshape(1, -1)  # (1, n_features)
-
-    # Track latencies in ms
-    latencies = {}
-
-    start_time = time.time()
-    pred_ann_scaled = model_ann.predict(x_last_scaled, verbose=0)[0][0]
-    latency_ann = (time.time() - start_time) * 1000
-    latencies['ann'] = latency_ann
-    PREDICTION_LATENCY.labels(model='ann').observe(latency_ann / 1000)
-    PREDICTION_COUNTER.labels(model='ann').inc()
-
-    # RNN-Modelle bekommen die gesamte Sequenz
-    seq_scaled_rnn = seq_scaled.reshape(1, LOOK_BACK, -1)  # (1, 20, n_features)
-
-    start_time = time.time()
-    pred_gru_scaled = model_gru.predict(seq_scaled_rnn, verbose=0)[0][0]
-    latency_gru = (time.time() - start_time) * 1000
-    latencies['gru'] = latency_gru
-    PREDICTION_LATENCY.labels(model='gru').observe(latency_gru / 1000)
-    PREDICTION_COUNTER.labels(model='gru').inc()
-
-    start_time = time.time()
-    pred_lstm_scaled = model_lstm.predict(seq_scaled_rnn, verbose=0)[0][0]
-    latency_lstm = (time.time() - start_time) * 1000
-    latencies['lstm'] = latency_lstm
-    PREDICTION_LATENCY.labels(model='lstm').observe(latency_lstm / 1000)
-    PREDICTION_COUNTER.labels(model='lstm').inc()
-
-    start_time = time.time()
-    pred_trf_scaled = model_trf.predict(seq_scaled_rnn, verbose=0)[0][0]
-    latency_transformer = (time.time() - start_time) * 1000
-    latencies['transformer'] = latency_transformer
-    PREDICTION_LATENCY.labels(model='transformer').observe(latency_transformer / 1000)
-    PREDICTION_COUNTER.labels(model='transformer').inc()
-
-    # Ensemble im skalierten Raum
-    preds_scaled = np.array([
-        pred_ann_scaled,
-        pred_gru_scaled,
-        pred_lstm_scaled,
-        pred_trf_scaled,
-    ])
-    ensemble_scaled = preds_scaled.mean()
-
-    # Zurück in Original-Skala
-    ensemble_original = scaler_y.inverse_transform([[ensemble_scaled]])[0][0]
-    ann_original = scaler_y.inverse_transform([[pred_ann_scaled]])[0][0]
-    gru_original = scaler_y.inverse_transform([[pred_gru_scaled]])[0][0]
-    lstm_original = scaler_y.inverse_transform([[pred_lstm_scaled]])[0][0]
-    trf_original = scaler_y.inverse_transform([[pred_trf_scaled]])[0][0]
-
-    # Update prediction value gauges
-    PREDICTION_VALUE.labels(model='ensemble').set(ensemble_original)
-    PREDICTION_VALUE.labels(model='ann').set(ann_original)
-    PREDICTION_VALUE.labels(model='gru').set(gru_original)
-    PREDICTION_VALUE.labels(model='lstm').set(lstm_original)
-    PREDICTION_VALUE.labels(model='transformer').set(trf_original)
-    PREDICTION_COUNTER.labels(model='ensemble').inc()
-
-    # Log to database (async, non-blocking)
-    predictions = {
-        'ann': float(ann_original),
-        'gru': float(gru_original),
-        'lstm': float(lstm_original),
-        'transformer': float(trf_original),
-        'ensemble': float(ensemble_original)
-    }
+    logger.info(f"[{request_id}] Received prediction request")
 
     try:
-        database.log_prediction(
-            input_sequence=request.sequence,
-            predictions=predictions,
-            latencies=latencies,
-            request_id=request_id,
-            model_version="1.0.0"
-        )
-    except Exception as e:
-        # Log error but don't fail the prediction
-        print(f"Database logging failed: {e}")
+        seq = np.array(request.sequence, dtype=float)  # Shape (T, n_features)
+        logger.info(f"[{request_id}] Input shape: {seq.shape}")
 
-    return EnsembleResponse(
-        prediction=float(ensemble_original),
-        components={
-            "ANN": float(ann_original),
-            "GRU": float(gru_original),
-            "LSTM": float(lstm_original),
-            "Transformer": float(trf_original),
-        },
-    )
+        # Validierung der Länge
+        if seq.shape[0] != LOOK_BACK:
+            INPUT_VALIDATION_ERRORS.inc()
+            logger.warning(f"[{request_id}] Invalid sequence length: {seq.shape[0]}, expected {LOOK_BACK}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Expected sequence length {LOOK_BACK}, got {seq.shape[0]}"
+            )
+
+        # Check for NaN or Inf values
+        if np.any(np.isnan(seq)) or np.any(np.isinf(seq)):
+            INPUT_VALIDATION_ERRORS.inc()
+            logger.warning(f"[{request_id}] Input contains NaN or Inf values")
+            raise HTTPException(
+                status_code=400,
+                detail="Input sequence contains NaN or Inf values"
+            )
+
+        # Skalierung wie im Training: scaler_X wurde auf (n_samples, n_features) gefittet,
+        # wir geben ihm hier (LOOK_BACK, n_features)
+        logger.info(f"[{request_id}] Scaling input sequence")
+        seq_scaled = scaler_X.transform(seq)  # (LOOK_BACK, n_features)
+
+        # ANN bekommt den letzten Zeitschritt (wie ein „normaler" Sample)
+        x_last_scaled = seq_scaled[-1].reshape(1, -1)  # (1, n_features)
+
+        # Track latencies in ms
+        latencies = {}
+
+        logger.info(f"[{request_id}] Running ANN prediction")
+        start_time = time.time()
+        pred_ann_scaled = model_ann.predict(x_last_scaled, verbose=0)[0][0]
+        latency_ann = (time.time() - start_time) * 1000
+        latencies['ann'] = latency_ann
+        PREDICTION_LATENCY.labels(model='ann').observe(latency_ann / 1000)
+        PREDICTION_COUNTER.labels(model='ann').inc()
+        logger.info(f"[{request_id}] ANN prediction: {pred_ann_scaled:.4f} (latency: {latency_ann:.2f}ms)")
+
+        # RNN-Modelle bekommen die gesamte Sequenz
+        seq_scaled_rnn = seq_scaled.reshape(1, LOOK_BACK, -1)  # (1, 20, n_features)
+
+        logger.info(f"[{request_id}] Running GRU prediction")
+        start_time = time.time()
+        pred_gru_scaled = model_gru.predict(seq_scaled_rnn, verbose=0)[0][0]
+        latency_gru = (time.time() - start_time) * 1000
+        latencies['gru'] = latency_gru
+        PREDICTION_LATENCY.labels(model='gru').observe(latency_gru / 1000)
+        PREDICTION_COUNTER.labels(model='gru').inc()
+        logger.info(f"[{request_id}] GRU prediction: {pred_gru_scaled:.4f} (latency: {latency_gru:.2f}ms)")
+
+        logger.info(f"[{request_id}] Running LSTM prediction")
+        start_time = time.time()
+        pred_lstm_scaled = model_lstm.predict(seq_scaled_rnn, verbose=0)[0][0]
+        latency_lstm = (time.time() - start_time) * 1000
+        latencies['lstm'] = latency_lstm
+        PREDICTION_LATENCY.labels(model='lstm').observe(latency_lstm / 1000)
+        PREDICTION_COUNTER.labels(model='lstm').inc()
+        logger.info(f"[{request_id}] LSTM prediction: {pred_lstm_scaled:.4f} (latency: {latency_lstm:.2f}ms)")
+
+        logger.info(f"[{request_id}] Running Transformer prediction")
+        start_time = time.time()
+        pred_trf_scaled = model_trf.predict(seq_scaled_rnn, verbose=0)[0][0]
+        latency_transformer = (time.time() - start_time) * 1000
+        latencies['transformer'] = latency_transformer
+        PREDICTION_LATENCY.labels(model='transformer').observe(latency_transformer / 1000)
+        PREDICTION_COUNTER.labels(model='transformer').inc()
+        logger.info(f"[{request_id}] Transformer prediction: {pred_trf_scaled:.4f} (latency: {latency_transformer:.2f}ms)")
+
+        # Ensemble im skalierten Raum
+        preds_scaled = np.array([
+            pred_ann_scaled,
+            pred_gru_scaled,
+            pred_lstm_scaled,
+            pred_trf_scaled,
+        ])
+        ensemble_scaled = preds_scaled.mean()
+        logger.info(f"[{request_id}] Ensemble prediction (scaled): {ensemble_scaled:.4f}")
+
+        # Zurück in Original-Skala
+        logger.info(f"[{request_id}] Inverse transforming predictions to original scale")
+        ensemble_original = scaler_y.inverse_transform([[ensemble_scaled]])[0][0]
+        ann_original = scaler_y.inverse_transform([[pred_ann_scaled]])[0][0]
+        gru_original = scaler_y.inverse_transform([[pred_gru_scaled]])[0][0]
+        lstm_original = scaler_y.inverse_transform([[pred_lstm_scaled]])[0][0]
+        trf_original = scaler_y.inverse_transform([[pred_trf_scaled]])[0][0]
+
+        # Update prediction value gauges
+        PREDICTION_VALUE.labels(model='ensemble').set(ensemble_original)
+        PREDICTION_VALUE.labels(model='ann').set(ann_original)
+        PREDICTION_VALUE.labels(model='gru').set(gru_original)
+        PREDICTION_VALUE.labels(model='lstm').set(lstm_original)
+        PREDICTION_VALUE.labels(model='transformer').set(trf_original)
+        PREDICTION_COUNTER.labels(model='ensemble').inc()
+
+        # Log to database (async, non-blocking)
+        predictions = {
+            'ann': float(ann_original),
+            'gru': float(gru_original),
+            'lstm': float(lstm_original),
+            'transformer': float(trf_original),
+            'ensemble': float(ensemble_original)
+        }
+
+        try:
+            database.log_prediction(
+                input_sequence=request.sequence,
+                predictions=predictions,
+                latencies=latencies,
+                request_id=request_id,
+                model_version="1.0.0"
+            )
+        except Exception as e:
+            # Log error but don't fail the prediction
+            logger.warning(f"[{request_id}] Database logging failed: {e}")
+
+        logger.info(f"[{request_id}] Prediction completed successfully. Ensemble: {ensemble_original:.4f}")
+        return EnsembleResponse(
+            prediction=float(ensemble_original),
+            components={
+                "ANN": float(ann_original),
+                "GRU": float(gru_original),
+                "LSTM": float(lstm_original),
+                "Transformer": float(trf_original),
+            },
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (validation errors)
+        raise
+    except ValueError as e:
+        # Input validation errors
+        logger.error(f"[{request_id}] Validation error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        # Catch all other errors
+        logger.error(f"[{request_id}] Prediction failed: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error during prediction: {str(e)}"
+        )
