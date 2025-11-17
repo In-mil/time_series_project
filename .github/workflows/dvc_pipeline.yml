@@ -36,10 +36,10 @@ jobs:
           mkdir -p .dvc/cache
           dvc config cache.dir .dvc/cache
 
-      - name: Pull dataset from GCS
+      - name: Pull dataset & models from GCS
         run: |
-          echo "Pulling dataset from remote storage..."
-          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote --force -v || (echo "Dataset pull failed"; exit 1)
+          echo "Pulling all artifacts from remote storage..."
+          dvc pull -r gcsremote --force -v || echo "Some artifacts not yet in remote, will be generated"
           echo "Verifying dataset file exists..."
           ls -lh data/final_data/ || true
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
@@ -48,17 +48,17 @@ jobs:
           fi
           echo "Dataset successfully pulled and verified"
 
-      - name: Run all model stages
+      - name: Check pipeline status
+        run: |
+          echo "Checking which stages need to be run..."
+          dvc status
+
+      - name: Run pipeline (only changed stages)
         env:
           MLFLOW_TRACKING_URI: file:./mlruns
         run: |
-          echo "Running all model training stages..."
-          dvc repro train_ann -v || exit 1
-          dvc repro train_gru -v || exit 1
-          dvc repro train_lstm -v || exit 1
-          dvc repro train_transformer -v || exit 1
-          dvc repro train_ensemble -v || exit 1
-          dvc repro evaluate_models -v || exit 1
+          echo "Running pipeline – DVC will skip unchanged stages..."
+          dvc repro evaluate_models -v
 
       - name: Push updated artifacts and metrics to GCS
         run: |
