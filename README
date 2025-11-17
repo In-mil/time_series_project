@@ -104,9 +104,9 @@ The project features a highly optimized CI/CD pipeline with significant performa
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| **FastAPI** | 🚀 [Coming Soon] | REST API for predictions |
-| **MLflow** | 📊 [Coming Soon] | Experiment tracking UI |
-| **Grafana** | 📈 [Coming Soon] | Monitoring dashboard |
+| **FastAPI** |  [Coming Soon] | REST API for predictions |
+| **MLflow** |  [Coming Soon] | Experiment tracking UI |
+| **Grafana** | [Coming Soon] | Monitoring dashboard |
 
 ---
 
@@ -143,27 +143,60 @@ docker-compose -f docker-compose.monitoring.yml up -d
 
 ---
 
-## Collaboration
+                   ┌──────────────────────────────┐
+                   │          GitHub              │
+                   │  - Source code & notebooks   │
+                   │  - CI/CD via Actions         │
+                   │  - Workflow: dvc_pipeline.yml│
+                   └────────────┬─────────────────┘
+                                │
+                                ▼
+          ┌───────────────────────────────┐
+          │       GitHub Actions Runner   │
+          │-------------------------------│
+          │Pull data/models via DVC   │
+          │Train models (ANN, LSTM…)  │
+          │Evaluate & log metrics     │
+          │Push artifacts to GCS + MLflow │
+          └────────────┬────────────────────────┘
+                       │
+                       ▼
+        ┌────────────────────────────────────────┐
+        │      DVC + Google Cloud Storage (GCS)  │
+        │----------------------------------------│
+        │ - Stores large datasets (.csv)         │
+        │ - Stores model weights (.keras)        │
+        │ - Remote: gs://time-series-dvc-storage │
+        └────────────────┬───────────────────────┘
+                         │
+                         ▼
+        ┌────────────────────────────────────────┐
+        │          MLflow Tracking Server        │
+        │----------------------------------------│
+        │ - Runs in Docker container or VM       │
+        │ - Stores metrics in mlflow.db          │
+        │ - Artifacts also in GCS                │
+        │ - Accessible to all teammates          │
+        │   via http://<server-ip>:5000          │
+        └────────────────┬───────────────────────┘
+                         │
+                         ▼
+       ┌──────────────────────────────────────────┐
+       │          FastAPI Inference Service       │
+       │------------------------------------------│
+       │ - Deployed with Docker or Cloud Run      │
+       │ - Loads latest model from DVC cache      │
+       │ - Exposes /predict endpoint              │
+       │ - Optional REST API for live forecasts   │
+       └────────────────┬────────────────────────┘
+                         │
+                         ▼
+         ┌────────────────────────────────────┐
+         │         Developer Laptops          │
+         │------------------------------------│
+         │ - Clone repo via Git               │
+         │ - Pull data/models via DVC         │
+         │ - Connect to MLflow remotely       │
+         │ - Local training via Docker        │
+         └────────────────────────────────────┘
 
-### For Teammates
-
-1. **Get Repository Access**
-   - Contact repository owner for collaborator access
-
-2. **Setup GCP Credentials**
-   ```bash
-   # You'll need a service account key for DVC
-   export GOOGLE_APPLICATION_CREDENTIALS=path/to/your/key.json
-   ```
-
-3. **Configure DVC Remote**
-   ```bash
-   dvc remote modify gcsremote credentialpath $GOOGLE_APPLICATION_CREDENTIALS
-   ```
-
-4. **Pull Latest Models**
-   ```bash
-   dvc pull -r gcsremote
-   ```
-
----
