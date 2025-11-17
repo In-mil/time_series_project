@@ -65,8 +65,8 @@ jobs:
           echo "Pulling dataset from remote storage..."
 
           # DVC is unreliable in CI - use gsutil directly
-          # Parse MD5 hash from .dvc file
-          HASH=$(grep 'md5:' data/final_data/20251115_dataset_crp.csv.dvc | awk '{print $2}')
+          # Parse MD5 hash from .dvc file (it's in YAML format: "- md5: HASH")
+          HASH=$(grep 'md5:' data/final_data/20251115_dataset_crp.csv.dvc | head -1 | awk '{print $3}')
           echo "Dataset hash: $HASH"
 
           # Download directly from GCS using hash-based path
@@ -95,7 +95,8 @@ jobs:
             (
               DVC_FILE="${artifact}.dvc"
               if [ -f "$DVC_FILE" ]; then
-                HASH=$(grep 'md5:' "$DVC_FILE" 2>/dev/null | awk '{print $2}')
+                # Parse hash from YAML (format: "- md5: HASH")
+                HASH=$(grep 'md5:' "$DVC_FILE" 2>/dev/null | head -1 | awk '{print $3}')
                 if [ -n "$HASH" ]; then
                   PREFIX="${HASH:0:2}"
                   SUFFIX="${HASH:2}"
