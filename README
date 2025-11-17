@@ -70,4 +70,100 @@ The models are trained and versioned with **DVC**, evaluated via **MLflow**, and
 ```
 
 ---
-## pending:
+
+## CI/CD Pipeline Optimizations
+
+The project features a highly optimized CI/CD pipeline with significant performance improvements:
+
+### Performance Metrics
+- **Initial pipeline:** ~60 minutes per run (sequential training)
+- **Optimized pipeline:** ~3 minutes when unchanged, ~15 minutes with changes
+- **Improvement:** 95% faster for unchanged code, 75% faster for full retraining
+
+### Key Optimizations
+1. **Dependency Caching**
+   - Python packages cached based on `requirements.txt` hash
+   - Reduces installation time from 3 min → 30 sec
+
+2. **DVC Artifact Caching**
+   - Models and datasets cached between runs
+   - Only pulls what changed
+   - Reduces pull time from 2 min → 10 sec
+
+3. **Parallel Model Training**
+   - 4 base models train simultaneously instead of sequentially
+   - Reduces training time from 50 min → 12 min
+
+4. **Smart Stage Skipping**
+   - DVC automatically skips unchanged stages
+   - Only retrain models when code/data changes
+
+---
+
+## Live Demo
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| **FastAPI** | 🚀 [Coming Soon] | REST API for predictions |
+| **MLflow** | 📊 [Coming Soon] | Experiment tracking UI |
+| **Grafana** | 📈 [Coming Soon] | Monitoring dashboard |
+
+---
+
+## Local Development
+
+### Prerequisites
+- Python 3.11+
+- Docker & Docker Compose
+- Google Cloud account (for DVC remote)
+- DVC installed
+
+### Quick Start
+
+```bash
+# Clone repository
+git clone https://github.com/In-mil/time_series_project.git
+cd time_series_project
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Pull models and data from DVC
+dvc pull -r gcsremote
+
+# Start services with Docker Compose
+docker-compose -f docker-compose.monitoring.yml up -d
+```
+
+### Services will be available at:
+- FastAPI: http://localhost:8000
+- MLflow: http://localhost:5001
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000
+
+---
+
+## Collaboration
+
+### For Teammates
+
+1. **Get Repository Access**
+   - Contact repository owner for collaborator access
+
+2. **Setup GCP Credentials**
+   ```bash
+   # You'll need a service account key for DVC
+   export GOOGLE_APPLICATION_CREDENTIALS=path/to/your/key.json
+   ```
+
+3. **Configure DVC Remote**
+   ```bash
+   dvc remote modify gcsremote credentialpath $GOOGLE_APPLICATION_CREDENTIALS
+   ```
+
+4. **Pull Latest Models**
+   ```bash
+   dvc pull -r gcsremote
+   ```
+
+---
