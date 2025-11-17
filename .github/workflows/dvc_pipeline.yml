@@ -56,9 +56,7 @@ jobs:
 
       - name: Pull dataset & models from GCS
         run: |
-          echo "Pulling dataset from remote storage..."
-          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote --force -v || (echo "Dataset pull failed"; exit 1)
-          echo "Pulling all model artifacts from remote storage..."
+          echo "Pulling all artifacts from remote storage..."
           dvc pull -r gcsremote --force -v || echo "Some artifacts not yet in remote, will be generated"
           echo "Verifying dataset file exists..."
           ls -lh data/final_data/ || true
@@ -66,7 +64,7 @@ jobs:
             echo "Dataset missing after pull – aborting!"
             exit 1
           fi
-          echo "Dataset successfully pulled and verified"
+          echo "All artifacts pulled and verified successfully"
 
       - name: Check pipeline status
         run: |
