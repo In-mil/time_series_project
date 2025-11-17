@@ -62,23 +62,29 @@ jobs:
           echo "Pulling dataset from remote storage..."
           dvc pull data/final_data/20251115_dataset_crp.csv.dvc -r gcsremote -v
 
+          # Force checkout to ensure file is in working directory (not just in cache)
+          echo "Checking out dataset from cache..."
+          dvc checkout data/final_data/20251115_dataset_crp.csv.dvc --force
+
           echo "Verifying dataset exists..."
           ls -lh data/final_data/
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
-            echo "Dataset missing after pull – aborting!"
+            echo "❌ Dataset missing after pull and checkout – aborting!"
             exit 1
           fi
 
-          echo "Pulling model artifacts (if available)..."
-          dvc pull models/model_ann.keras.dvc -r gcsremote -v 2>/dev/null || echo "ANN model not in remote yet"
-          dvc pull models/model_gru.keras.dvc -r gcsremote -v 2>/dev/null || echo "GRU model not in remote yet"
-          dvc pull models/model_lstm.keras.dvc -r gcsremote -v 2>/dev/null || echo "LSTM model not in remote yet"
-          dvc pull models/model_transformer.keras.dvc -r gcsremote -v 2>/dev/null || echo "Transformer model not in remote yet"
-          dvc pull models/model_ensemble.json.dvc -r gcsremote -v 2>/dev/null || echo "Ensemble model not in remote yet"
-          dvc pull artifacts/ensemble.dvc -r gcsremote -v 2>/dev/null || echo "Ensemble artifacts not in remote yet"
-          dvc pull reports/metrics.json.dvc -r gcsremote -v 2>/dev/null || echo "Metrics not in remote yet"
+          echo "✅ Dataset verified: $(ls -lh data/final_data/20251115_dataset_crp.csv | awk '{print $5}')"
 
-          echo "All artifacts pulled successfully"
+          echo "Pulling model artifacts (if available)..."
+          dvc pull models/model_ann.keras.dvc -r gcsremote -v 2>/dev/null && dvc checkout models/model_ann.keras.dvc --force 2>/dev/null || echo "⚠ ANN model not in remote yet"
+          dvc pull models/model_gru.keras.dvc -r gcsremote -v 2>/dev/null && dvc checkout models/model_gru.keras.dvc --force 2>/dev/null || echo "⚠ GRU model not in remote yet"
+          dvc pull models/model_lstm.keras.dvc -r gcsremote -v 2>/dev/null && dvc checkout models/model_lstm.keras.dvc --force 2>/dev/null || echo "⚠ LSTM model not in remote yet"
+          dvc pull models/model_transformer.keras.dvc -r gcsremote -v 2>/dev/null && dvc checkout models/model_transformer.keras.dvc --force 2>/dev/null || echo "⚠ Transformer model not in remote yet"
+          dvc pull models/model_ensemble.json.dvc -r gcsremote -v 2>/dev/null && dvc checkout models/model_ensemble.json.dvc --force 2>/dev/null || echo "⚠ Ensemble model not in remote yet"
+          dvc pull artifacts/ensemble.dvc -r gcsremote -v 2>/dev/null && dvc checkout artifacts/ensemble.dvc --force 2>/dev/null || echo "⚠ Ensemble artifacts not in remote yet"
+          dvc pull reports/metrics.json.dvc -r gcsremote -v 2>/dev/null && dvc checkout reports/metrics.json.dvc --force 2>/dev/null || echo "⚠ Metrics not in remote yet"
+
+          echo "✅ All artifacts pulled and checked out successfully"
 
       - name: Check pipeline status
         id: dvc-status
