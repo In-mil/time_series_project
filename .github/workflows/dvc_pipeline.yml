@@ -154,14 +154,13 @@ jobs:
           echo "Starting DVC pipeline..."
           echo "==================================="
 
-          # Use DVC repro with --jobs 4 for parallel execution
           # DVC will intelligently:
           # - Only run stages with changed dependencies (skip unchanged stages)
-          # - Run up to 4 stages in parallel (train_ann, train_gru, train_lstm, train_transformer)
+          # - Run stages in parallel automatically when dependencies allow
           # - Automatically handle dependencies (train_ensemble after base models, evaluate_models after ensemble)
 
           echo "Running pipeline with intelligent dependency tracking and parallel execution..."
-          dvc repro evaluate_models --jobs 4 -v
+          dvc repro evaluate_models -v
 
           echo "==================================="
           echo "Pipeline completed successfully!"
