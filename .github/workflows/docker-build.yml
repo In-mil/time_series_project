@@ -104,18 +104,16 @@ jobs:
           echo "Docker image built and pushed successfully!"
           echo "Tags: ${{ steps.meta.outputs.tags }}"
 
-      # Optional: Deploy to Cloud Run
-      # Uncomment to enable automatic deployment
-      # - name: Deploy to Cloud Run
-      #   id: deploy
-      #   uses: google-github-actions/deploy-cloudrun@v2
-      #   with:
-      #     service: time-series-api
-      #     region: ${{ env.GCP_REGION }}
-      #     image: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/time-series/${{ env.IMAGE_NAME }}:latest
-      #     flags: '--allow-unauthenticated --memory=2Gi --cpu=2 --min-instances=0 --max-instances=3'
-      #
-      # - name: Show deployment URL
-      #   run: |
-      #     echo "Service deployed!"
-      #     echo "URL: ${{ steps.deploy.outputs.url }}"
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: time-series-api
+          region: ${{ env.GCP_REGION }}
+          image: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/time-series/${{ env.IMAGE_NAME }}:latest
+          flags: '--allow-unauthenticated --memory=2Gi --cpu=2 --min-instances=0 --max-instances=3 --port=8000'
+
+      - name: Show deployment URL
+        run: |
+          echo "Service deployed!"
+          echo "URL: ${{ steps.deploy.outputs.url }}"
