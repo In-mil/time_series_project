@@ -54,8 +54,8 @@ jobs:
       - name: Pull models and artifacts from DVC
         run: |
           echo "Pulling trained models from DVC remote..."
+          rm -rf .dvc/cache
           dvc pull
-          dvc checkout
 
           echo "Verifying models exist..."
           ls -lh models/*.keras

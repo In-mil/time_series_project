@@ -54,7 +54,7 @@ jobs:
 
           echo "✅ GCloud authenticated successfully"
 
-          # Configure DVC (no local cache to avoid state inconsistencies)
+          # Configure DVC
           dvc remote modify gcsremote credentialpath gcp_creds.json
           dvc remote default gcsremote
 
@@ -64,15 +64,13 @@ jobs:
 
           echo "Pulling dataset and models from DVC/GCS..."
 
+          # Clear DVC cache to force fresh download
+          echo "Clearing DVC cache to ensure fresh download..."
+          rm -rf .dvc/cache
+
           # Pull dataset (required)
-          echo "Debug: Checking if .dvc file exists..."
-          ls -lh data/final_data/*.dvc
-
-          echo "Debug: Pulling dataset with force flag..."
-          dvc pull data/final_data/20251115_dataset_crp.csv.dvc --force -v
-
-          echo "Debug: Checking out dataset..."
-          dvc checkout data/final_data/20251115_dataset_crp.csv.dvc --force -v
+          echo "Pulling dataset from remote..."
+          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -v
 
           # Verify dataset exists
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
@@ -85,7 +83,6 @@ jobs:
           # Pull pipeline outputs if they exist (may not exist on first run or after code changes)
           echo "Pulling existing pipeline outputs (if available)..."
           dvc pull || echo "⚠️  Some outputs not yet in remote (will be created during pipeline run)"
-          dvc checkout || echo "⚠️  Checking out cached outputs"
 
           # Show what we have
           echo "Models available:"
