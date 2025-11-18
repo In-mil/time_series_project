@@ -1,0 +1,162 @@
+{
+  "dashboard": {
+    "title": "Model Drift Detection",
+    "tags": ["drift", "ml", "monitoring"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Dataset Drift Score",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "model_drift_score{drift_type=\"dataset\"}",
+            "legendFormat": "Dataset Drift Score",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"label": "Drift Score", "min": 0, "max": 1},
+          {"show": false}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [0.3], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"type": "last"}
+            }
+          ],
+          "name": "Dataset Drift Alert"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Prediction Drift Score",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "prediction_drift_score",
+            "legendFormat": "Prediction Drift",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"label": "Drift Score", "min": 0, "max": 1},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Drift Events (Total)",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 8, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "model_drift_detected_total",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "orientation": "horizontal"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 5, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Current Drift Status",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 8, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "model_drift_score{drift_type=\"dataset\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 0.3, "color": "yellow"},
+                {"value": 0.5, "color": "red"}
+              ]
+            },
+            "unit": "percentunit"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Drift Detection Rate",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 4},
+        "targets": [
+          {
+            "expr": "rate(model_drift_detected_total[5m])",
+            "legendFormat": "Detections/sec",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Prediction Volume",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 12, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "rate(predictions_total[1m])",
+            "legendFormat": "Predictions/sec",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Model Prediction Values",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 12, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "last_prediction_value{model=\"ensemble\"}",
+            "legendFormat": "Ensemble",
+            "refId": "A"
+          },
+          {
+            "expr": "last_prediction_value{model=\"ann\"}",
+            "legendFormat": "ANN",
+            "refId": "B"
+          },
+          {
+            "expr": "last_prediction_value{model=\"gru\"}",
+            "legendFormat": "GRU",
+            "refId": "C"
+          }
+        ]
+      }
+    ],
+    "refresh": "5s",
+    "time": {"from": "now-1h", "to": "now"}
+  }
+}

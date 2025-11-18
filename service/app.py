@@ -8,6 +8,7 @@ from tensorflow.keras.models import load_model
 import time
 import uuid
 import logging
+from datetime import datetime
 from prometheus_client import Counter, Histogram, Gauge, make_asgi_app
 from prometheus_fastapi_instrumentator import Instrumentator
 from . import database
@@ -106,12 +107,20 @@ async def startup_event():
     # Initialize drift detection
     reference_data_path = REPO_ROOT / "artifacts" / "drift_detection" / "reference_data.csv"
     if reference_data_path.exists():
+        # Load reference data to get feature names
+        import pandas as pd
+        ref_df = pd.read_csv(reference_data_path, nrows=1)
+        # Exclude metadata columns
+        non_feature_cols = ['ticker', 'date']
+        feature_names = [col for col in ref_df.columns if col not in non_feature_cols]
+
         drift_detector.initialize_drift_detector(
             reference_data_path=reference_data_path,
             window_size=1000,
-            drift_threshold=0.3
+            drift_threshold=0.3,
+            feature_names=feature_names
         )
-        logger.info("Drift detector initialized successfully")
+        logger.info(f"Drift detector initialized successfully with {len(feature_names)} features")
     else:
         logger.warning(f"Reference data not found at {reference_data_path}, drift detection disabled")
 
@@ -173,23 +182,32 @@ def trigger_drift_check():
 
 @app.get("/drift/report")
 def get_drift_report():
-    """Generate detailed drift report (HTML)"""
+    """Generate detailed drift report (JSON)"""
     detector = drift_detector.get_drift_detector()
     if not detector:
         return {"status": "disabled", "message": "Drift detection not initialized"}
 
-    report = detector.get_drift_report()
-    if report is None:
+    # Get current status as detailed report
+    status = detector.get_status()
+
+    if status['current_window_size'] < 10:
         return {"status": "insufficient_data", "message": "Not enough data for drift report"}
 
-    # Save report to file
-    report_path = REPO_ROOT / "artifacts" / "drift_detection" / f"drift_report_{int(time.time())}.html"
-    report.save_html(str(report_path))
+    # Trigger drift check to get latest results
+    drift_results = detector.check_drift()
 
     return {
         "status": "success",
-        "message": f"Drift report saved to {report_path}",
-        "report_path": str(report_path)
+        "report": {
+            "overview": status,
+            "drift_analysis": drift_results,
+            "timestamp": datetime.now().isoformat(),
+            "recommendation": (
+                "Consider retraining the model"
+                if drift_results.get('dataset_drift', False)
+                else "No action required"
+            )
+        }
     }
 
 

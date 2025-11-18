@@ -193,12 +193,10 @@ class DriftDetector:
                 current_data=curr_subset
             )
 
-            # Extract results
-            results = report.as_dict()
-            # In 0.7.x, DriftedColumnsCount returns number and share of drifted columns
-            drift_result = results['metrics'][0]['result']
-            drift_share = drift_result.get('share_of_drifted_columns', 0.0)
-            drift_score = drift_share  # Use share as score
+            # Extract results - Evidently 0.7.x API
+            # Access drift_share directly from the metric object
+            metric = report.metrics[0]
+            drift_score = metric.drift_share  # Share of drifted columns (0.0 to 1.0)
 
             # Update Prometheus metrics
             DRIFT_SCORE.labels(drift_type='dataset').set(drift_score)
