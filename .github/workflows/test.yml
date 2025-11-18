@@ -35,26 +35,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Configure Google Cloud & DVC
-        env:
-          GCP_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
-        run: |
-          set -euo pipefail
-          echo "$GCP_KEY" > gcp_creds.json
-          gcloud auth activate-service-account --key-file=gcp_creds.json || true
-          dvc remote modify gcsremote credentialpath gcp_creds.json || true
-          dvc remote default gcsremote || true
-
-      - name: Pull models and artifacts from DVC
-        run: |
-          set -euo pipefail
-          echo "Pulling models and artifacts..."
-          dvc pull models/model_ann.keras.dvc || echo "Failed to pull ANN model"
-          dvc pull models/model_gru.keras.dvc || echo "Failed to pull GRU model"
-          dvc pull models/model_lstm.keras.dvc || echo "Failed to pull LSTM model"
-          dvc pull models/model_transformer.keras.dvc || echo "Failed to pull Transformer model"
-          dvc pull artifacts/ensemble/ -r gcsremote || echo "Failed to pull ensemble artifacts"
-
       - name: Run unit tests
         run: |
           pytest tests/ -v --tb=short --cov=service --cov-report=xml --cov-report=term

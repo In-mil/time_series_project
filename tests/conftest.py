@@ -6,10 +6,56 @@ import numpy as np
 from fastapi.testclient import TestClient
 from pathlib import Path
 import sys
+import os
+from unittest.mock import MagicMock, patch
 
 # Add parent directory to path so we can import service module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Check if we need to mock models (CI environment or models don't exist)
+CI_ENV = os.getenv("CI", "false").lower() == "true"
+REPO_ROOT = Path(__file__).parent.parent
+MODELS_EXIST = (REPO_ROOT / "models" / "model_ann.keras").exists()
+USE_MOCKS = CI_ENV or not MODELS_EXIST
+
+if USE_MOCKS:
+    # Create persistent mocks for models and scalers
+    import unittest.mock as mock_module
+
+    # Mock Keras model that returns slightly different values based on input
+    mock_keras_model = MagicMock()
+    def mock_predict(x, verbose=0):
+        # Return different values based on input sum for variety
+        input_sum = float(np.sum(x))
+        result = 0.5 + (input_sum % 1.0) * 0.1  # Varies between 0.5 and 0.6
+        return np.array([[result]])
+    mock_keras_model.predict.side_effect = mock_predict
+
+    # Smart mock scaler that validates shape
+    class MockScaler:
+        def transform(self, X):
+            X = np.array(X)
+            # Validate shape like real scaler
+            if X.shape[1] != 68:
+                raise ValueError(f"X has {X.shape[1]} features, but StandardScaler is expecting 68 features as input.")
+            # Return slightly modified data
+            return X / 100.0
+
+        def inverse_transform(self, X):
+            X = np.array(X)
+            # Return scaled back
+            return X * 100.0
+
+    mock_scaler_transform = MockScaler()
+
+    # Apply patches globally
+    _keras_patcher = patch("tensorflow.keras.models.load_model", return_value=mock_keras_model)
+    _joblib_patcher = patch("joblib.load", return_value=mock_scaler_transform)
+
+    _keras_patcher.start()
+    _joblib_patcher.start()
+
+# Now import the app (with mocks if necessary)
 from service.app import app
 
 
