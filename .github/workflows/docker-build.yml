@@ -54,12 +54,7 @@ jobs:
       - name: Pull models and artifacts from DVC
         run: |
           echo "Pulling trained models from DVC remote..."
-          dvc pull models/model_ann.keras.dvc -r gcsremote --force
-          dvc pull models/model_gru.keras.dvc -r gcsremote --force
-          dvc pull models/model_lstm.keras.dvc -r gcsremote --force
-          dvc pull models/model_transformer.keras.dvc -r gcsremote --force
-          dvc pull models/model_ensemble.json.dvc -r gcsremote --force || true
-          dvc pull artifacts/ensemble.dvc -r gcsremote --force
+          dvc pull
 
           echo "Verifying models exist..."
           ls -lh models/*.keras
