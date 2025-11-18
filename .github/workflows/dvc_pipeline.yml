@@ -65,8 +65,14 @@ jobs:
           echo "Pulling dataset and models from DVC/GCS..."
 
           # Pull dataset (required)
-          dvc pull data/final_data/20251115_dataset_crp.csv.dvc
-          dvc checkout data/final_data/20251115_dataset_crp.csv.dvc
+          echo "Debug: Checking if .dvc file exists..."
+          ls -lh data/final_data/*.dvc
+
+          echo "Debug: Pulling dataset with force flag..."
+          dvc pull data/final_data/20251115_dataset_crp.csv.dvc --force -v
+
+          echo "Debug: Checking out dataset..."
+          dvc checkout data/final_data/20251115_dataset_crp.csv.dvc --force -v
 
           # Verify dataset exists
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
