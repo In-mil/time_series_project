@@ -44,20 +44,12 @@ jobs:
           gcloud auth activate-service-account --key-file=gcp-key.json
           gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Configure DVC remote
-        env:
-          GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
-        run: |
-          dvc remote add -d gcsremote gs://${GCS_BUCKET_NAME}/.dvc/cache --force
-          dvc remote modify gcsremote credentialpath gcp-key.json
-
       - name: Pull models and artifacts from DVC
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: gcp-key.json
         run: |
-          echo "Fetching trained models from DVC remote..."
-          dvc fetch
-
-          echo "Checking out models to workspace..."
-          dvc checkout --force
+          echo "Pulling trained models from DVC..."
+          dvc pull
 
           echo "Verifying models exist..."
           ls -lh models/*.keras

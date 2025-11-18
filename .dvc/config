@@ -2,4 +2,3 @@
     remote = gcsremote
 ['remote "gcsremote"']
     url = gs://time-series-dvc-storage/.dvc/cache
-    credentialpath = /Users/ina/Documents/spicedAcademy/time_series_project/GCS_key/mlflow-testpj-83243029f010.json

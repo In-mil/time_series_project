@@ -54,36 +54,28 @@ jobs:
 
           echo "✅ GCloud authenticated successfully"
 
-          # Configure DVC
-          dvc remote modify gcsremote credentialpath gcp_creds.json
-          dvc remote default gcsremote
-
       - name: Pull dataset & models from DVC
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: gcp_creds.json
         run: |
           set -euo pipefail
 
-          echo "Fetching dataset and models from DVC/GCS..."
+          echo "Pulling dataset and models from DVC/GCS..."
 
-          # Fetch dataset from remote to cache (explicit 2-step process for CI/CD reliability)
-          echo "Step 1: Fetching dataset from remote..."
-          dvc fetch data/final_data/20251115_dataset_crp.csv.dvc
-
-          # Checkout dataset from cache to workspace
-          echo "Step 2: Checking out dataset to workspace..."
-          dvc checkout data/final_data/20251115_dataset_crp.csv.dvc --force
+          # DVC will use GOOGLE_APPLICATION_CREDENTIALS automatically
+          dvc pull data/final_data/20251115_dataset_crp.csv.dvc
 
           # Verify dataset exists
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
-            echo "❌ Dataset missing after DVC fetch+checkout!"
+            echo "❌ Dataset missing after DVC pull!"
             exit 1
           fi
 
           echo "✅ Dataset verified: $(du -h data/final_data/20251115_dataset_crp.csv | cut -f1)"
 
-          # Fetch and checkout pipeline outputs if they exist
-          echo "Fetching pipeline outputs (if available)..."
-          dvc fetch || echo "⚠️  Some outputs not yet in remote"
-          dvc checkout --force || echo "⚠️  Some outputs not available yet"
+          # Pull pipeline outputs if they exist
+          echo "Pulling pipeline outputs (if available)..."
+          dvc pull || echo "⚠️  Some outputs not yet in remote"
 
           # Show what we have
           echo "Models available:"
