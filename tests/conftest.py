@@ -12,13 +12,18 @@ from unittest.mock import MagicMock, patch
 # Add parent directory to path so we can import service module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Check if we need to mock models (CI environment or models don't exist)
-CI_ENV = os.getenv("CI", "false").lower() == "true"
+# Check if models exist locally - use mocks only as fallback
 REPO_ROOT = Path(__file__).parent.parent
 MODELS_EXIST = (REPO_ROOT / "models" / "model_ann.keras").exists()
-USE_MOCKS = CI_ENV or not MODELS_EXIST
+SCALERS_EXIST = (REPO_ROOT / "artifacts" / "ensemble" / "scaler_X.pkl").exists()
+
+# Only use mocks if models don't exist (e.g., fresh clone without DVC pull)
+USE_MOCKS = not (MODELS_EXIST and SCALERS_EXIST)
 
 if USE_MOCKS:
+    print("⚠️  WARNING: Models not found locally, using mocks for testing")
+    print("   Run 'dvc pull' to use real models in tests")
+
     # Create persistent mocks for models and scalers
     import unittest.mock as mock_module
 
@@ -54,8 +59,10 @@ if USE_MOCKS:
 
     _keras_patcher.start()
     _joblib_patcher.start()
+else:
+    print("✅ Using real models from DVC for testing")
 
-# Now import the app (with mocks if necessary)
+# Now import the app (with real models or mocks)
 from service.app import app
 
 
