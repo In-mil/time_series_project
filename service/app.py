@@ -95,6 +95,21 @@ class EnsembleResponse(BaseModel):
     components: dict
 
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialize resources on application startup"""
+    logger.info("Starting application, initializing database connection pool")
+    if database.DB_ENABLED:
+        database.get_pool()  # Initialize pool at startup
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup resources on application shutdown"""
+    logger.info("Shutting down application, closing database connection pool")
+    database.close_pool()
+
+
 @app.get("/")
 def home():
     return {"status": "ok", "database_enabled": database.DB_ENABLED}

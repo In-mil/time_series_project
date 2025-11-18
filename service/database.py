@@ -1,8 +1,9 @@
 """
-Database module for prediction logging
+Database module for prediction logging with connection pooling
 """
 import os
 import psycopg2
+from psycopg2 import pool
 from psycopg2.extras import Json
 from typing import Optional, List, Dict
 from contextlib import contextmanager
@@ -14,16 +15,69 @@ logger = logging.getLogger(__name__)
 DATABASE_URL = os.getenv("DATABASE_URL")
 DB_ENABLED = DATABASE_URL is not None
 
+# Connection pool configuration
+MIN_CONNECTIONS = int(os.getenv("DB_POOL_MIN_CONN", "2"))
+MAX_CONNECTIONS = int(os.getenv("DB_POOL_MAX_CONN", "10"))
+
+# Global connection pool
+_connection_pool: Optional[pool.SimpleConnectionPool] = None
+
+
+def _initialize_pool():
+    """Initialize the connection pool"""
+    global _connection_pool
+    if _connection_pool is None and DB_ENABLED:
+        try:
+            _connection_pool = pool.SimpleConnectionPool(
+                MIN_CONNECTIONS,
+                MAX_CONNECTIONS,
+                DATABASE_URL
+            )
+            logger.info(f"Initialized connection pool (min={MIN_CONNECTIONS}, max={MAX_CONNECTIONS})")
+        except Exception as e:
+            logger.error(f"Failed to initialize connection pool: {e}")
+            raise
+
+
+def get_pool() -> Optional[pool.SimpleConnectionPool]:
+    """Get the connection pool, initializing if necessary"""
+    if _connection_pool is None and DB_ENABLED:
+        _initialize_pool()
+    return _connection_pool
+
+
+def close_pool():
+    """Close all connections in the pool"""
+    global _connection_pool
+    if _connection_pool is not None:
+        _connection_pool.closeall()
+        _connection_pool = None
+        logger.info("Closed connection pool")
+
+
 @contextmanager
 def get_db_connection():
-    """Context manager for database connections"""
+    """
+    Context manager for database connections from the pool
+
+    This implementation uses connection pooling to avoid creating
+    a new connection for each request, significantly improving
+    performance under load.
+    """
     if not DB_ENABLED:
         yield None
         return
 
     conn = None
+    connection_pool = get_pool()
+
+    if connection_pool is None:
+        yield None
+        return
+
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        # Get connection from pool
+        conn = connection_pool.getconn()
         yield conn
         conn.commit()
     except Exception as e:
@@ -32,8 +86,9 @@ def get_db_connection():
         logger.error(f"Database error: {e}")
         raise
     finally:
-        if conn:
-            conn.close()
+        if conn and connection_pool:
+            # Return connection to pool instead of closing
+            connection_pool.putconn(conn)
 
 
 def log_prediction(
