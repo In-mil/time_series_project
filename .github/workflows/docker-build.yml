@@ -55,6 +55,7 @@ jobs:
         run: |
           echo "Pulling trained models from DVC remote..."
           dvc pull
+          dvc checkout
 
           echo "Verifying models exist..."
           ls -lh models/*.keras

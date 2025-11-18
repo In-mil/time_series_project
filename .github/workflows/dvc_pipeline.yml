@@ -66,6 +66,7 @@ jobs:
 
           # Pull dataset (required)
           dvc pull data/final_data/20251115_dataset_crp.csv.dvc
+          dvc checkout data/final_data/20251115_dataset_crp.csv.dvc
 
           # Verify dataset exists
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
@@ -78,6 +79,7 @@ jobs:
           # Pull pipeline outputs if they exist (may not exist on first run or after code changes)
           echo "Pulling existing pipeline outputs (if available)..."
           dvc pull || echo "⚠️  Some outputs not yet in remote (will be created during pipeline run)"
+          dvc checkout || echo "⚠️  Checking out cached outputs"
 
           # Show what we have
           echo "Models available:"
