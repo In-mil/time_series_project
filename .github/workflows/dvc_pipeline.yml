@@ -65,11 +65,11 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS: $GOOGLE_APPLICATION_CREDENTIALS"
           echo "Credentials file exists: $(test -f "$GOOGLE_APPLICATION_CREDENTIALS" && echo "yes" || echo "no")"
 
-          # Clear any stale cache
-          rm -rf .dvc/cache
+          # Clear all DVC cache and state files to force fresh download
+          rm -rf .dvc/cache .dvc/tmp .dvc/cache.db
 
           # DVC will use GOOGLE_APPLICATION_CREDENTIALS automatically
-          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -v
+          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -v -f
 
           # Verify dataset exists
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
