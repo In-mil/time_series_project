@@ -65,7 +65,7 @@ jobs:
           echo "Pulling dataset and models from DVC/GCS..."
 
           # Pull dataset (required)
-          dvc pull data/final_data/20251115_dataset_crp.csv
+          dvc pull data/final_data/20251115_dataset_crp.csv.dvc
 
           # Verify dataset exists
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
@@ -75,12 +75,9 @@ jobs:
 
           echo "✅ Dataset verified: $(du -h data/final_data/20251115_dataset_crp.csv | cut -f1)"
 
-          # Pull models if they exist (may not exist on first run or after code changes)
-          echo "Pulling existing models (if available)..."
-          dvc pull models/model_ann.keras models/model_gru.keras models/model_lstm.keras models/model_transformer.keras models/model_ensemble.json || echo "⚠️  Some models not yet in remote (will be created during pipeline run)"
-
-          # Pull ensemble artifacts if they exist
-          dvc pull artifacts/ensemble/ || echo "⚠️  Ensemble artifacts not yet in remote (will be created during pipeline run)"
+          # Pull pipeline outputs if they exist (may not exist on first run or after code changes)
+          echo "Pulling existing pipeline outputs (if available)..."
+          dvc pull || echo "⚠️  Some outputs not yet in remote (will be created during pipeline run)"
 
           # Show what we have
           echo "Models available:"
