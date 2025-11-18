@@ -11,6 +11,7 @@ import logging
 from prometheus_client import Counter, Histogram, Gauge, make_asgi_app
 from prometheus_fastapi_instrumentator import Instrumentator
 from . import database
+from . import drift_detector
 
 # Configure logging
 logging.basicConfig(
@@ -102,6 +103,18 @@ async def startup_event():
     if database.DB_ENABLED:
         database.get_pool()  # Initialize pool at startup
 
+    # Initialize drift detection
+    reference_data_path = REPO_ROOT / "artifacts" / "drift_detection" / "reference_data.csv"
+    if reference_data_path.exists():
+        drift_detector.initialize_drift_detector(
+            reference_data_path=reference_data_path,
+            window_size=1000,
+            drift_threshold=0.3
+        )
+        logger.info("Drift detector initialized successfully")
+    else:
+        logger.warning(f"Reference data not found at {reference_data_path}, drift detection disabled")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -136,6 +149,48 @@ def update_prediction_actual(prediction_id: int, actual_value: float):
     """Update the actual value for a prediction (for drift detection)"""
     success = database.update_actual_value(prediction_id, actual_value)
     return {"success": success, "prediction_id": prediction_id}
+
+
+@app.get("/drift/status")
+def get_drift_status():
+    """Get current drift detection status"""
+    detector = drift_detector.get_drift_detector()
+    if not detector:
+        return {"status": "disabled", "message": "Drift detection not initialized"}
+    return detector.get_status()
+
+
+@app.post("/drift/check")
+def trigger_drift_check():
+    """Manually trigger drift detection check"""
+    detector = drift_detector.get_drift_detector()
+    if not detector:
+        return {"status": "disabled", "message": "Drift detection not initialized"}
+
+    results = detector.check_drift()
+    return results
+
+
+@app.get("/drift/report")
+def get_drift_report():
+    """Generate detailed drift report (HTML)"""
+    detector = drift_detector.get_drift_detector()
+    if not detector:
+        return {"status": "disabled", "message": "Drift detection not initialized"}
+
+    report = detector.get_drift_report()
+    if report is None:
+        return {"status": "insufficient_data", "message": "Not enough data for drift report"}
+
+    # Save report to file
+    report_path = REPO_ROOT / "artifacts" / "drift_detection" / f"drift_report_{int(time.time())}.html"
+    report.save_html(str(report_path))
+
+    return {
+        "status": "success",
+        "message": f"Drift report saved to {report_path}",
+        "report_path": str(report_path)
+    }
 
 
 @app.post("/predict", response_model=EnsembleResponse)
@@ -262,6 +317,18 @@ def predict(request: SequenceRequest):
         except Exception as e:
             # Log error but don't fail the prediction
             logger.warning(f"[{request_id}] Database logging failed: {e}")
+
+        # Track prediction for drift detection
+        detector = drift_detector.get_drift_detector()
+        if detector:
+            try:
+                detector.add_prediction(
+                    features=seq_scaled,  # Use scaled features
+                    prediction=float(ensemble_original),
+                    metadata={'request_id': request_id, 'timestamp': time.time()}
+                )
+            except Exception as e:
+                logger.warning(f"[{request_id}] Drift tracking failed: {e}")
 
         logger.info(f"[{request_id}] Prediction completed successfully. Ensemble: {ensemble_original:.4f}")
         return EnsembleResponse(

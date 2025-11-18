@@ -29,6 +29,7 @@ COPY models/model_gru.keras ./models/
 COPY models/model_lstm.keras ./models/
 COPY models/model_transformer.keras ./models/
 COPY artifacts/ensemble/ ./artifacts/ensemble/
+COPY artifacts/drift_detection/ ./artifacts/drift_detection/
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
