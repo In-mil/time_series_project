@@ -62,27 +62,28 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "Pulling dataset and models from DVC/GCS..."
+          echo "Fetching dataset and models from DVC/GCS..."
 
-          # Clear DVC cache to force fresh download
-          echo "Clearing DVC cache to ensure fresh download..."
-          rm -rf .dvc/cache
+          # Fetch dataset from remote to cache (explicit 2-step process for CI/CD reliability)
+          echo "Step 1: Fetching dataset from remote..."
+          dvc fetch data/final_data/20251115_dataset_crp.csv.dvc
 
-          # Pull dataset (required)
-          echo "Pulling dataset from remote..."
-          dvc pull data/final_data/20251115_dataset_crp.csv.dvc -v
+          # Checkout dataset from cache to workspace
+          echo "Step 2: Checking out dataset to workspace..."
+          dvc checkout data/final_data/20251115_dataset_crp.csv.dvc --force
 
           # Verify dataset exists
           if [ ! -f "data/final_data/20251115_dataset_crp.csv" ]; then
-            echo "❌ Dataset missing after DVC pull!"
+            echo "❌ Dataset missing after DVC fetch+checkout!"
             exit 1
           fi
 
           echo "✅ Dataset verified: $(du -h data/final_data/20251115_dataset_crp.csv | cut -f1)"
 
-          # Pull pipeline outputs if they exist (may not exist on first run or after code changes)
-          echo "Pulling existing pipeline outputs (if available)..."
-          dvc pull || echo "⚠️  Some outputs not yet in remote (will be created during pipeline run)"
+          # Fetch and checkout pipeline outputs if they exist
+          echo "Fetching pipeline outputs (if available)..."
+          dvc fetch || echo "⚠️  Some outputs not yet in remote"
+          dvc checkout --force || echo "⚠️  Some outputs not available yet"
 
           # Show what we have
           echo "Models available:"

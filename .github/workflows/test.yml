@@ -45,9 +45,12 @@ jobs:
 
       - name: Pull models from DVC
         run: |
-          echo "Pulling models from DVC/GCS..."
-          rm -rf .dvc/cache
-          dvc pull
+          echo "Fetching models from DVC/GCS..."
+          dvc fetch
+
+          echo "Checking out models to workspace..."
+          dvc checkout --force
+
           echo "Verifying models exist..."
           ls -lh models/*.keras
           ls -lh artifacts/ensemble/*.pkl
