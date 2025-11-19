@@ -136,3 +136,95 @@ def mock_scaler_y():
             return np.array(y) * 10.0
 
     return MockScaler()
+
+
+# ============================================================================
+# Drift Detection Fixtures
+# ============================================================================
+
+@pytest.fixture
+def sample_reference_data():
+    """Generate sample reference data for drift detection (100 samples x 68 features)"""
+    import pandas as pd
+
+    # Generate realistic-looking feature data
+    np.random.seed(42)
+    n_samples = 100
+    n_features = 68
+
+    # Create feature data with realistic distributions
+    data = {}
+    data['Unnamed: 0'] = range(n_samples)
+    data['ticker'] = np.random.choice(['BTC', 'ETH', 'ADA', 'SOL'], n_samples)
+    data['date'] = pd.date_range('2024-01-01', periods=n_samples)
+
+    # Generate 65 numeric features (68 - 3 metadata columns)
+    for i in range(65):
+        # Mix of different distributions for realism
+        if i % 3 == 0:
+            data[f'feature_{i}'] = np.random.normal(0, 1, n_samples)
+        elif i % 3 == 1:
+            data[f'feature_{i}'] = np.random.uniform(-1, 1, n_samples)
+        else:
+            data[f'feature_{i}'] = np.random.exponential(1, n_samples)
+
+    return pd.DataFrame(data)
+
+
+@pytest.fixture
+def drift_detector_instance(tmp_path, sample_reference_data):
+    """Create a DriftDetector instance with temporary reference data"""
+    from service.drift_detector import DriftDetector
+
+    # Save reference data to temp file
+    ref_data_path = tmp_path / "reference_data.csv"
+    sample_reference_data.to_csv(ref_data_path, index=False)
+
+    # Get feature names (exclude metadata columns)
+    non_feature_cols = ['ticker', 'date']
+    feature_names = [col for col in sample_reference_data.columns if col not in non_feature_cols]
+
+    # Initialize detector
+    detector = DriftDetector(
+        reference_data_path=ref_data_path,
+        window_size=50,  # Smaller window for faster tests
+        drift_threshold=0.3,
+        feature_names=feature_names
+    )
+
+    return detector
+
+
+@pytest.fixture
+def prediction_batch():
+    """Generate a batch of predictions for drift testing"""
+    np.random.seed(123)
+
+    # Generate 30 predictions with features (20 timesteps x 68 features)
+    predictions = []
+    for _ in range(30):
+        # Features for one prediction (flattened)
+        features = np.random.normal(0, 1, 68)
+        prediction_value = np.random.normal(0, 2)
+
+        predictions.append({
+            'features': features,
+            'prediction': prediction_value,
+            'timestamp': np.random.randint(1000000, 2000000)
+        })
+
+    return predictions
+
+
+@pytest.fixture
+def mock_evidently_report():
+    """Mock Evidently Report for testing drift detection"""
+    mock_report = MagicMock()
+    mock_metric = MagicMock()
+
+    # Default: no drift (drift_share = 0.1)
+    mock_metric.drift_share = 0.1
+    mock_report.metrics = [mock_metric]
+    mock_report.run = MagicMock()
+
+    return mock_report

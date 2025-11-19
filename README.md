@@ -6,7 +6,7 @@
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker)](https://www.docker.com/)
 [![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python)](https://www.python.org/)
 [![TensorFlow](https://img.shields.io/badge/TensorFlow-2.15+-orange?logo=tensorflow)](https://www.tensorflow.org/)
-
+[![.github/workflows/daily-monitoring.yml](https://github.com/In-mil/time_series_project/actions/workflows/daily-monitoring.yml/badge.svg)](https://github.com/In-mil/time_series_project/actions/workflows/daily-monitoring.yml)
 ---
 
 ## Overview
