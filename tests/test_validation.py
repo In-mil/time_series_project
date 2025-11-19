@@ -89,7 +89,7 @@ class TestSequenceConstraints:
     ):
         """Test that wrong feature count is detected"""
         for timestep in invalid_sequence_wrong_features:
-            if len(timestep) != 16:
+            if len(timestep) != 68:
                 assert True
                 return
         assert False, "Should have detected wrong feature count"

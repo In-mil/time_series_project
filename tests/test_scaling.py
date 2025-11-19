@@ -99,28 +99,28 @@ class TestScalingEdgeCases:
 
     def test_scaling_handles_zeros(self, mock_scaler_X):
         """Test that scaling handles zero values"""
-        zeros = np.zeros((20, 16))
+        zeros = np.zeros((20, 68))
         scaled = mock_scaler_X.transform(zeros)
         assert not np.any(np.isnan(scaled))
         assert not np.any(np.isinf(scaled))
 
     def test_scaling_handles_negative_values(self, mock_scaler_X):
         """Test that scaling handles negative values"""
-        negative = -np.ones((20, 16)) * 100
+        negative = -np.ones((20, 68)) * 100
         scaled = mock_scaler_X.transform(negative)
         assert not np.any(np.isnan(scaled))
         assert not np.any(np.isinf(scaled))
 
     def test_scaling_handles_large_values(self, mock_scaler_X):
         """Test that scaling handles large values"""
-        large = np.ones((20, 16)) * 1000
+        large = np.ones((20, 68)) * 1000
         scaled = mock_scaler_X.transform(large)
         assert not np.any(np.isnan(scaled))
         assert not np.any(np.isinf(scaled))
 
     def test_scaling_handles_small_values(self, mock_scaler_X):
         """Test that scaling handles small values"""
-        small = np.ones((20, 16)) * 0.001
+        small = np.ones((20, 68)) * 0.001
         scaled = mock_scaler_X.transform(small)
         assert not np.any(np.isnan(scaled))
         assert not np.any(np.isinf(scaled))
@@ -138,8 +138,8 @@ class TestScalerConsistency:
 
     def test_scaler_handles_different_inputs(self, mock_scaler_X):
         """Test that scaler handles different inputs differently"""
-        arr1 = np.ones((20, 16))
-        arr2 = np.ones((20, 16)) * 2
+        arr1 = np.ones((20, 68))
+        arr2 = np.ones((20, 68)) * 2
         scaled1 = mock_scaler_X.transform(arr1)
         scaled2 = mock_scaler_X.transform(arr2)
         assert not np.array_equal(scaled1, scaled2)
