@@ -267,6 +267,15 @@ jobs:
     if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
 
     steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --no-cache-dir requests numpy
+
       - name: Send test predictions
         run: |
           echo "📈 Generating test traffic for monitoring..."
