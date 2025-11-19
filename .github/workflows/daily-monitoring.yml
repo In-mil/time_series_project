@@ -27,7 +27,7 @@ jobs:
     name: 🔍 Drift Detection
     runs-on: ubuntu-latest
     # Only run drift check once daily (not on 6-hour schedule)
-    if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
 
     steps:
       - name: Checkout code
@@ -219,7 +219,7 @@ Automated monitoring detected model drift on ${date}.
   performance-test:
     name: ⚡ Performance Benchmark
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
 
     steps:
       - name: Checkout code
@@ -308,7 +308,7 @@ Automated monitoring detected model drift on ${date}.
   generate-traffic:
     name: 📈 Generate Test Traffic
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
 
     steps:
       - name: Send test predictions
