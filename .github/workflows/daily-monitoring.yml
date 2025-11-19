@@ -7,6 +7,8 @@ on:
     # Health checks every 6 hours
     - cron: '0 */6 * * *'
   workflow_dispatch:  # Manual trigger
+  push:
+    branches: [main]  # TEMPORARY: Remove after first run
 
 # Required permissions for creating issues
 permissions:
