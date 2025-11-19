@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 # Configuration
-API_URL = "https://time-series-api-329496099417.europe-west3.run.app"  # Update after deployment
+API_URL = "https://time-series-api-jgqkhpmk5q-ey.a.run.app"
 LOOK_BACK = 20
 
 
@@ -39,7 +39,7 @@ def create_sample_sequence():
     This creates random data with the correct shape for demonstration.
     """
     # Get feature count from the data
-    data_path = Path(__file__).parent / "data" / "final_data" / "20251115_dataset_crp.csv"
+    data_path = Path(__file__).parent.parent / "data" / "final_data" / "20251115_dataset_crp.csv"
 
     if data_path.exists():
         import pandas as pd

@@ -10,7 +10,7 @@ import sys
 
 # Configuration
 API_URL = "https://time-series-api-jgqkhpmk5q-ey.a.run.app"
-DATA_PATH = Path(__file__).parent / "data" / "final_data" / "20251115_dataset_crp.csv"
+DATA_PATH = Path(__file__).parent.parent / "data" / "final_data" / "20251115_dataset_crp.csv"
 LOOK_BACK = 20
 
 
@@ -18,7 +18,7 @@ def load_and_prepare_data(ticker="BTC", n_samples=LOOK_BACK):
     """Load real data from CSV and prepare a sequence for prediction.
 
     Args:
-        ticker: Crypto ticker symbol (e.g., 'BTC', 'ETH')
+        ticker: Crypto ticker symbol (e.g., 'BTC', 'ETH', 'btcusd', 'ethusd')
         n_samples: Number of timesteps to use (default: 20)
 
     Returns:
@@ -35,16 +35,23 @@ def load_and_prepare_data(ticker="BTC", n_samples=LOOK_BACK):
     df = pd.read_csv(DATA_PATH)
     print(f"  Loaded {len(df):,} rows")
 
+    # Normalize ticker format (convert BTC -> btcusd, ETH -> ethusd)
+    ticker_normalized = ticker.lower()
+    if not ticker_normalized.endswith('usd'):
+        ticker_normalized = ticker_normalized + 'usd'
+
+    print(f"  Looking for ticker: {ticker_normalized}")
+
     # Filter for specific ticker
-    df_ticker = df[df['ticker'] == ticker].copy()
+    df_ticker = df[df['ticker'] == ticker_normalized].copy()
 
     if len(df_ticker) == 0:
         available_tickers = df['ticker'].unique()
-        print(f"ERROR: Ticker '{ticker}' not found in dataset")
+        print(f"ERROR: Ticker '{ticker_normalized}' not found in dataset")
         print(f"Available tickers: {', '.join(available_tickers[:10])}")
         sys.exit(1)
 
-    print(f"  Found {len(df_ticker):,} rows for {ticker}")
+    print(f"  Found {len(df_ticker):,} rows for {ticker_normalized}")
 
     # Sort by date
     df_ticker = df_ticker.sort_values('date')
@@ -80,7 +87,7 @@ def load_and_prepare_data(ticker="BTC", n_samples=LOOK_BACK):
 
     # Metadata
     metadata = {
-        'ticker': ticker,
+        'ticker': ticker_normalized,
         'n_features': len(feature_cols),
         'n_timesteps': len(sequence),
         'date_range': f"{df_sequence['date'].iloc[0]} to {df_sequence['date'].iloc[-1]}",
