@@ -63,8 +63,8 @@ def create_sample_sequence():
 
         print(f"  Using {n_features} features from dataset")
     else:
-        # Default if data not available
-        n_features = 50
+        # Default if data not available (must match model's expected features)
+        n_features = 68
         print(f"  Using {n_features} features (default)")
 
     # Create random sequence
