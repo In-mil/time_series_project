@@ -75,10 +75,13 @@ jobs:
         if: steps.drift-status.outcome == 'failure'
         uses: actions/github-script@v7
         continue-on-error: true
+        env:
+          API_URL: ${{ env.API_URL }}
         with:
           script: |
             const date = new Date().toISOString().split('T')[0];
             const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const apiUrl = process.env.API_URL;
 
             try {
               await github.rest.issues.create({
@@ -91,7 +94,7 @@ Automated monitoring detected model drift on ${date}.
 
 ### Details
 - **Workflow Run:** [View Logs](${runUrl})
-- **API:** ${{ env.API_URL }}
+- **API:** ${apiUrl}
 - **Detection Time:** ${new Date().toISOString()}
 
 ### Action Items
