@@ -1,29 +1,7 @@
 version: '3.8'
-
+#startet alle 4 Container
 services:
   # Time Series Prediction API
-  # PostgreSQL Database
-  postgres:
-    image: postgres:16-alpine
-    container_name: postgres-timeseries
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=timeseries
-      - POSTGRES_PASSWORD=timeseries123
-      - POSTGRES_DB=predictions
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
-    networks:
-      - monitoring
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U timeseries"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
   api:
     build:
       context: .
@@ -33,7 +11,6 @@ services:
       - "8000:8000"
     environment:
       - ENABLE_METRICS=true
-      - DATABASE_URL=postgresql://timeseries:timeseries123@postgres:5432/predictions
     networks:
       - monitoring
     healthcheck:
@@ -42,9 +19,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   # MLflow Tracking Server
   mlflow:
@@ -84,38 +58,12 @@ services:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
       - prometheus-data:/prometheus
     networks:
       - monitoring
     restart: unless-stopped
     depends_on:
       - api
-      - alertmanager
-
-  # Alertmanager
-  alertmanager:
-    image: prom/alertmanager:latest
-    container_name: alertmanager
-    ports:
-      - "9093:9093"
-    volumes:
-      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - alertmanager-data:/alertmanager
-    command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
-      - '--web.external-url=http://localhost:9093'
-    networks:
-      - monitoring
-    restart: unless-stopped
-    environment:
-      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:9093/-/healthy || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # Grafana
   grafana:
@@ -137,7 +85,6 @@ services:
     restart: unless-stopped
     depends_on:
       - prometheus
-      - alertmanager
 
 networks:
   monitoring:
@@ -146,6 +93,4 @@ networks:
 volumes:
   prometheus-data:
   grafana-data:
-  postgres-data:
   mlflow-data:
-  alertmanager-data:

@@ -11,7 +11,6 @@ import logging
 from datetime import datetime
 from prometheus_client import Counter, Histogram, Gauge, make_asgi_app
 from prometheus_fastapi_instrumentator import Instrumentator
-from . import database
 from . import drift_detector
 
 # Configure logging
@@ -100,9 +99,7 @@ class EnsembleResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize resources on application startup"""
-    logger.info("Starting application, initializing database connection pool")
-    if database.DB_ENABLED:
-        database.get_pool()  # Initialize pool at startup
+    logger.info("Starting application")
 
     # Initialize drift detection
     reference_data_path = REPO_ROOT / "artifacts" / "drift_detection" / "reference_data.csv"
@@ -128,36 +125,12 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup resources on application shutdown"""
-    logger.info("Shutting down application, closing database connection pool")
-    database.close_pool()
+    logger.info("Shutting down application")
 
 
 @app.get("/")
 def home():
-    return {"status": "ok", "database_enabled": database.DB_ENABLED}
-
-
-@app.get("/analytics/recent")
-def get_recent_predictions(limit: int = 100):
-    """Get recent predictions from database"""
-    predictions = database.get_recent_predictions(limit=limit)
-    return {"predictions": predictions, "count": len(predictions)}
-
-
-@app.get("/analytics/performance")
-def get_performance_metrics():
-    """Get aggregated model performance metrics"""
-    metrics = database.get_model_performance()
-    if metrics is None:
-        return {"error": "No data available or database disabled"}
-    return metrics
-
-
-@app.post("/analytics/update/{prediction_id}")
-def update_prediction_actual(prediction_id: int, actual_value: float):
-    """Update the actual value for a prediction (for drift detection)"""
-    success = database.update_actual_value(prediction_id, actual_value)
-    return {"success": success, "prediction_id": prediction_id}
+    return {"status": "ok"}
 
 
 @app.get("/drift/status")
@@ -314,27 +287,6 @@ def predict(request: SequenceRequest):
         PREDICTION_VALUE.labels(model='lstm').set(lstm_original)
         PREDICTION_VALUE.labels(model='transformer').set(trf_original)
         PREDICTION_COUNTER.labels(model='ensemble').inc()
-
-        # Log to database (async, non-blocking)
-        predictions = {
-            'ann': float(ann_original),
-            'gru': float(gru_original),
-            'lstm': float(lstm_original),
-            'transformer': float(trf_original),
-            'ensemble': float(ensemble_original)
-        }
-
-        try:
-            database.log_prediction(
-                input_sequence=request.sequence,
-                predictions=predictions,
-                latencies=latencies,
-                request_id=request_id,
-                model_version="1.0.0"
-            )
-        except Exception as e:
-            # Log error but don't fail the prediction
-            logger.warning(f"[{request_id}] Database logging failed: {e}")
 
         # Track prediction for drift detection
         detector = drift_detector.get_drift_detector()
