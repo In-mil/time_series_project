@@ -108,7 +108,7 @@ def prepare_features(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.D
     X_test_scaled = scaler_X.transform(X_test)
 
     return (X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled,
-            X_test_scaled, y_test, scaler_y)
+            X_test_scaled, y_train, y_val, y_test, scaler_y)
 
 
 def build_model(input_shape: int, layer_1_nodes: int, layer_1_dropout: float,
@@ -175,40 +175,46 @@ def train_model(model: tf.keras.Model, X_train: np.ndarray, y_train: np.ndarray,
     return history
 
 
-def evaluate_model(model: tf.keras.Model, X_test: np.ndarray, y_test: np.ndarray,
-                   scaler_y: StandardScaler, history: tf.keras.callbacks.History):
-    """Evaluate model and return metrics."""
-    # Training metrics from last epoch
-    mae_train = history.history['mae'][-1]
-    mse_train = history.history['mse'][-1]
-    val_mae = history.history['val_mae'][-1]
-    val_mse = history.history['val_mse'][-1]
+def evaluate_model(model: tf.keras.Model, X_train: np.ndarray, X_val: np.ndarray,
+                   X_test: np.ndarray, y_train: np.ndarray, y_val: np.ndarray,
+                   y_test: np.ndarray, scaler_y: StandardScaler):
+    """Evaluate model and return metrics on original scale."""
+    # Train predictions
+    y_train_pred = scaler_y.inverse_transform(
+        model.predict(X_train, verbose=0).reshape(-1, 1)
+    ).ravel()
+    train_mae = mean_absolute_error(y_train, y_train_pred)
+    train_mse = mean_squared_error(y_train, y_train_pred)
 
-    print("\nTrain Set Performance:")
-    print(f"   MAE:  {mae_train:.4f}")
-    print(f"   MSE:  {mse_train:.4f}")
+    print("\nTrain Set Performance (Original Scale):")
+    print(f"   MAE:  {train_mae:.4f}")
+    print(f"   MSE:  {train_mse:.4f}")
 
-    print("\nValidation Set Performance:")
+    # Validation predictions
+    y_val_pred = scaler_y.inverse_transform(
+        model.predict(X_val, verbose=0).reshape(-1, 1)
+    ).ravel()
+    val_mae = mean_absolute_error(y_val, y_val_pred)
+    val_mse = mean_squared_error(y_val, y_val_pred)
+
+    print("\nValidation Set Performance (Original Scale):")
     print(f"   MAE:  {val_mae:.4f}")
     print(f"   MSE:  {val_mse:.4f}")
 
     # Test predictions
-    y_pred_scaled = model.predict(X_test)
+    y_test_pred = scaler_y.inverse_transform(
+        model.predict(X_test, verbose=0).reshape(-1, 1)
+    ).ravel()
+    test_mae = mean_absolute_error(y_test, y_test_pred)
+    test_mse = mean_squared_error(y_test, y_test_pred)
 
-    # Inverse transform to original scale
-    y_pred_original = scaler_y.inverse_transform(y_pred_scaled.reshape(-1, 1)).ravel()
-
-    # Metrics on original scale
-    test_mae = mean_absolute_error(y_test, y_pred_original)
-    test_mse = mean_squared_error(y_test, y_pred_original)
-
-    print("\nTest Set Performance:")
+    print("\nTest Set Performance (Original Scale):")
     print(f"   MAE:  {test_mae:.4f}")
     print(f"   MSE:  {test_mse:.4f}")
 
     return {
-        'train_mae': mae_train,
-        'train_mse': mse_train,
+        'train_mae': train_mae,
+        'train_mse': train_mse,
         'val_mae': val_mae,
         'val_mse': val_mse,
         'test_mae': test_mae,
@@ -287,12 +293,12 @@ def main():
     )
 
     # Prepare features
-    (X_train, y_train, X_val, y_val, X_test,
-     y_test, scaler_y) = prepare_features(df_train, df_val, df_test, args.target_col)
+    (X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled, X_test_scaled,
+     y_train, y_val, y_test, scaler_y) = prepare_features(df_train, df_val, df_test, args.target_col)
 
     # Build model
     model = build_model(
-        input_shape=X_train.shape[1],
+        input_shape=X_train_scaled.shape[1],
         layer_1_nodes=args.layer_1_nodes,
         layer_1_dropout=args.layer_1_dropout,
         layer_2_nodes=args.layer_2_nodes,
@@ -303,13 +309,16 @@ def main():
     )
 
     # Train model
-    history = train_model(
-        model, X_train, y_train, X_val, y_val,
+    train_model(
+        model, X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled,
         args.epochs, args.batch_size, args.patience
     )
 
     # Evaluate model
-    metrics = evaluate_model(model, X_test, y_test, scaler_y, history)
+    metrics = evaluate_model(
+        model, X_train_scaled, X_val_scaled, X_test_scaled,
+        y_train, y_val, y_test, scaler_y
+    )
 
     # Log to MLflow
     params = {
