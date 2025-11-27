@@ -42,7 +42,8 @@ def warmup_tensorflow():
     """Pre-initialize TensorFlow to speed up first epoch."""
     print("Warming up TensorFlow...")
     dummy_model = tf.keras.Sequential([
-        tf.keras.layers.Dense(1, input_shape=(10,))
+        tf.keras.layers.Input(shape=(10,)),
+        tf.keras.layers.Dense(1)
     ])
     dummy_model.predict(np.zeros((1, 10)), verbose=0)
     del dummy_model
@@ -320,7 +321,7 @@ def main():
     parser.add_argument('--seed', type=int, default=SEED, help='Random seed')
 
     # MLflow arguments
-    parser.add_argument('--mlflow-uri', default='http://127.0.0.1:5001', help='MLflow tracking URI')
+    parser.add_argument('--mlflow-uri', default='https://mlflow-server-101264457040.europe-west3.run.app', help='MLflow tracking URI')
     parser.add_argument('--experiment-name', default='lstm_experiment', help='MLflow experiment name')
 
     args = parser.parse_args()

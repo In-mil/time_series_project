@@ -43,7 +43,8 @@ def warmup_tensorflow():
     print("Warming up TensorFlow...")
     # Create dummy model and run inference to trigger JIT compilation
     dummy_model = tf.keras.Sequential([
-        tf.keras.layers.Dense(1, input_shape=(10,))
+        tf.keras.layers.Input(shape=(10,)),
+        tf.keras.layers.Dense(1)
     ])
     dummy_model.predict(np.zeros((1, 10)), verbose=0)
     del dummy_model
@@ -272,7 +273,7 @@ def main():
     parser.add_argument('--seed', type=int, default=SEED, help='Random seed')
 
     # MLflow arguments
-    parser.add_argument('--mlflow-uri', default='http://127.0.0.1:5001', help='MLflow tracking URI')
+    parser.add_argument('--mlflow-uri', default='https://mlflow-server-101264457040.europe-west3.run.app', help='MLflow tracking URI')
     parser.add_argument('--experiment-name', default='ann_experiment', help='MLflow experiment name')
 
     args = parser.parse_args()
@@ -298,7 +299,7 @@ def main():
 
     # Build model
     model = build_model(
-        input_shape=X_train_scaled.shape[1],
+        input_shape=X_train.shape[1],
         layer_1_nodes=args.layer_1_nodes,
         layer_1_dropout=args.layer_1_dropout,
         layer_2_nodes=args.layer_2_nodes,
@@ -309,16 +310,13 @@ def main():
     )
 
     # Train model
-    train_model(
-        model, X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled,
+    history = train_model(
+        model, X_train, y_train, X_val, y_val,
         args.epochs, args.batch_size, args.patience
     )
 
     # Evaluate model
-    metrics = evaluate_model(
-        model, X_train_scaled, X_val_scaled, X_test_scaled,
-        y_train, y_val, y_test, scaler_y
-    )
+    metrics = evaluate_model(model, X_test, y_test, scaler_y, history)
 
     # Log to MLflow
     params = {

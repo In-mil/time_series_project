@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+# Installiere MLflow + GCS-Unterstützung
+RUN pip install --no-cache-dir \
+    mlflow==2.9.2 \
+    google-cloud-storage==2.19.0 \
+    psycopg2-binary
+
+# Arbeitsverzeichnis
+WORKDIR /app
+
+# Port für MLflow UI
+EXPOSE 5000
+
+# Starte MLflow Server
+CMD ["mlflow", "server", \
+     "--host", "0.0.0.0", \
+     "--port", "5000", \
+     "--backend-store-uri", "sqlite:///mlflow.db", \
+     "--default-artifact-root", "gs://time-series-mlflow-data/artifacts"]
