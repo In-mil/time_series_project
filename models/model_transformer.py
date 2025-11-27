@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-GRU Model for Crypto Price Prediction
+Transformer Model for Crypto Price Prediction
 
 Target: Predicting whether the crypto price will be higher in 5 days than today
-Method: Gated Recurrent Unit (GRU) - Recurrent Neural Network with TensorFlow/Keras
+Method: Transformer - Self-Attention Neural Network with TensorFlow/Keras
 
 Usage:
-    python model_gru.py --data-path /path/to/data.csv
-    python model_gru.py --epochs 50 --batch-size 128
+    python model_transformer.py --data-path /path/to/data.csv
+    python model_transformer.py --epochs 50 --batch-size 128
 """
 
 import argparse
@@ -22,6 +22,12 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import (
+    Input, Dense, Dropout, LayerNormalization,
+    MultiHeadAttention, GlobalAveragePooling1D
+)
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.preprocessing import StandardScaler
 
@@ -149,50 +155,81 @@ def create_sequences(X_data: np.ndarray, y_data: np.ndarray, df: pd.DataFrame, l
     return np.array(X_sequences), np.array(y_sequences), np.array(original_indices)
 
 
-def build_model(look_back: int, n_features: int, gru_units: int, gru_dropout: float,
-                use_second_gru: bool, learning_rate: float, l2_reg: float) -> tf.keras.Model:
-    """Build and compile the GRU model."""
-    layers = [tf.keras.layers.Input(shape=(look_back, n_features))]
+def create_positional_encoding(look_back: int, n_features: int) -> tf.Tensor:
+    """Create positional encoding for transformer."""
+    position_numbers = np.arange(look_back)[:, np.newaxis]
+    even_numbers = np.arange(0, n_features, 2)
+    frequencies = np.exp(even_numbers * -(np.log(10000.0) / n_features))
 
-    if use_second_gru:
-        layers.extend([
-            tf.keras.layers.GRU(
-                gru_units,
-                return_sequences=True,
-                kernel_regularizer=tf.keras.regularizers.l2(l2_reg),
-                name='gru_layer_1'
-            ),
-            tf.keras.layers.Dropout(gru_dropout, name='dropout_1'),
-            tf.keras.layers.GRU(
-                gru_units // 2,
-                return_sequences=False,
-                kernel_regularizer=tf.keras.regularizers.l2(l2_reg),
-                name='gru_layer_2'
-            ),
-            tf.keras.layers.Dropout(gru_dropout, name='dropout_2'),
-        ])
-    else:
-        layers.extend([
-            tf.keras.layers.GRU(
-                gru_units,
-                return_sequences=False,
-                kernel_regularizer=tf.keras.regularizers.l2(l2_reg),
-                name='gru_layer'
-            ),
-            tf.keras.layers.Dropout(gru_dropout, name='dropout'),
-        ])
+    position_encoding_table = np.zeros((look_back, n_features))
+    position_encoding_table[:, 0::2] = np.sin(position_numbers * frequencies)
+    position_encoding_table[:, 1::2] = np.cos(position_numbers * frequencies)
 
-    layers.append(tf.keras.layers.Dense(1, activation='linear', name='output'))
+    return tf.constant(position_encoding_table, dtype=tf.float32)
 
-    model = tf.keras.Sequential(layers)
 
+def build_model(look_back: int, n_features: int, head_size: int, num_heads: int,
+                ff_dim: int, dropout_rate: float, mlp_dropout: float,
+                learning_rate: float) -> tf.keras.Model:
+    """Build and compile the Transformer model."""
+    # Create positional encoding
+    positional_encoding = create_positional_encoding(look_back, n_features)
+
+    # Input layer
+    inputs = Input(shape=(look_back, n_features))
+
+    # Add positional encoding
+    x = inputs + positional_encoding
+
+    # Transformer Block 1
+    attention_1 = MultiHeadAttention(
+        key_dim=head_size, num_heads=num_heads, dropout=dropout_rate
+    )(x, x)
+    attention_1 = Dropout(dropout_rate)(attention_1)
+    attention_1 = x + attention_1
+    attention_1 = LayerNormalization(epsilon=1e-6)(attention_1)
+
+    ffn_1 = Dense(ff_dim, activation="relu")(attention_1)
+    ffn_1 = Dropout(dropout_rate)(ffn_1)
+    ffn_1 = Dense(n_features)(ffn_1)
+    ffn_1 = Dropout(dropout_rate)(ffn_1)
+    ffn_1 = attention_1 + ffn_1
+    block_1_output = LayerNormalization(epsilon=1e-6)(ffn_1)
+
+    # Transformer Block 2
+    attention_2 = MultiHeadAttention(
+        key_dim=head_size, num_heads=num_heads, dropout=dropout_rate
+    )(block_1_output, block_1_output)
+    attention_2 = Dropout(dropout_rate)(attention_2)
+    attention_2 = block_1_output + attention_2
+    attention_2 = LayerNormalization(epsilon=1e-6)(attention_2)
+
+    ffn_2 = Dense(ff_dim, activation="relu")(attention_2)
+    ffn_2 = Dropout(dropout_rate)(ffn_2)
+    ffn_2 = Dense(n_features)(ffn_2)
+    ffn_2 = Dropout(dropout_rate)(ffn_2)
+    ffn_2 = attention_2 + ffn_2
+    block_2_output = LayerNormalization(epsilon=1e-6)(ffn_2)
+
+    # Pool across time dimension
+    pooled = GlobalAveragePooling1D()(block_2_output)
+
+    # Final prediction layers
+    prediction = Dense(64, activation="relu")(pooled)
+    prediction = Dropout(mlp_dropout)(prediction)
+    outputs = Dense(1, activation="linear")(prediction)
+
+    # Create model
+    model = Model(inputs=inputs, outputs=outputs)
+
+    # Compile model
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-        loss='mae',
-        metrics=['mae', 'mse']
+        optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
+        loss="mae",
+        metrics=["mae", "mse"]
     )
 
-    print("\nGRU architecture:")
+    print("\nTransformer architecture:")
     model.summary()
 
     return model
@@ -201,11 +238,19 @@ def build_model(look_back: int, n_features: int, gru_units: int, gru_dropout: fl
 def train_model(model: tf.keras.Model, X_train: np.ndarray, y_train: np.ndarray,
                 X_val: np.ndarray, y_val: np.ndarray, epochs: int, batch_size: int,
                 patience: int) -> tf.keras.callbacks.History:
-    """Train the model with early stopping."""
-    early_stopping = tf.keras.callbacks.EarlyStopping(
-        monitor='val_loss',
+    """Train the model with early stopping and learning rate reduction."""
+    early_stopping = keras.callbacks.EarlyStopping(
+        monitor="val_loss",
         patience=patience,
         restore_best_weights=True,
+        verbose=1
+    )
+
+    reduce_lr = keras.callbacks.ReduceLROnPlateau(
+        monitor="val_loss",
+        factor=0.5,
+        patience=5,
+        min_lr=1e-7,
         verbose=1
     )
 
@@ -214,7 +259,7 @@ def train_model(model: tf.keras.Model, X_train: np.ndarray, y_train: np.ndarray,
         validation_data=(X_val, y_val),
         epochs=epochs,
         batch_size=batch_size,
-        callbacks=[early_stopping],
+        callbacks=[early_stopping, reduce_lr],
         verbose=1
     )
 
@@ -271,18 +316,18 @@ def log_to_mlflow(params: dict, metrics: dict, mlflow_uri: str, experiment_name:
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    with mlflow.start_run(run_name=f"gru_{timestamp}"):
+    with mlflow.start_run(run_name=f"transformer_{timestamp}"):
         for key, value in params.items():
             mlflow.log_param(key, value)
 
         for key, value in metrics.items():
             mlflow.log_metric(key, value)
 
-        print(f"\nMLflow run logged with name: gru_{timestamp}")
+        print(f"\nMLflow run logged with name: transformer_{timestamp}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Train GRU model for crypto price prediction')
+    parser = argparse.ArgumentParser(description='Train Transformer model for crypto price prediction')
 
     # Data arguments
     parser.add_argument(
@@ -297,22 +342,23 @@ def main():
     parser.add_argument('--target-col', default='future_5_close_higher_than_today', help='Target column')
 
     # Model architecture arguments
-    parser.add_argument('--gru-units', type=int, default=64, help='GRU units in first layer')
-    parser.add_argument('--gru-dropout', type=float, default=0.3, help='Dropout rate for GRU layers')
-    parser.add_argument('--no-second-gru', action='store_true', help='Disable second GRU layer')
+    parser.add_argument('--head-size', type=int, default=128, help='Attention head size')
+    parser.add_argument('--num-heads', type=int, default=4, help='Number of attention heads')
+    parser.add_argument('--ff-dim', type=int, default=128, help='Feed-forward dimension')
+    parser.add_argument('--dropout-rate', type=float, default=0.2, help='Dropout rate')
+    parser.add_argument('--mlp-dropout', type=float, default=0.3, help='MLP dropout rate')
     parser.add_argument('--learning-rate', type=float, default=0.0001, help='Learning rate')
-    parser.add_argument('--l2-reg', type=float, default=0.0001, help='L2 regularization strength')
     parser.add_argument('--look-back', type=int, default=20, help='Number of past days for sequences')
 
     # Training arguments
     parser.add_argument('--epochs', type=int, default=100, help='Maximum number of epochs')
     parser.add_argument('--batch-size', type=int, default=128, help='Batch size')
-    parser.add_argument('--patience', type=int, default=10, help='Early stopping patience')
+    parser.add_argument('--patience', type=int, default=15, help='Early stopping patience')
     parser.add_argument('--seed', type=int, default=SEED, help='Random seed')
 
     # MLflow arguments
     parser.add_argument('--mlflow-uri', default='http://127.0.0.1:5001', help='MLflow tracking URI')
-    parser.add_argument('--experiment-name', default='gru_experiment', help='MLflow experiment name')
+    parser.add_argument('--experiment-name', default='transformer_experiment', help='MLflow experiment name')
 
     args = parser.parse_args()
 
@@ -356,11 +402,12 @@ def main():
     model = build_model(
         look_back=args.look_back,
         n_features=n_features,
-        gru_units=args.gru_units,
-        gru_dropout=args.gru_dropout,
-        use_second_gru=not args.no_second_gru,
-        learning_rate=args.learning_rate,
-        l2_reg=args.l2_reg
+        head_size=args.head_size,
+        num_heads=args.num_heads,
+        ff_dim=args.ff_dim,
+        dropout_rate=args.dropout_rate,
+        mlp_dropout=args.mlp_dropout,
+        learning_rate=args.learning_rate
     )
 
     # Train model
@@ -377,13 +424,16 @@ def main():
 
     # Log to MLflow
     params = {
-        'gru_units': args.gru_units,
-        'gru_dropout': args.gru_dropout,
-        'use_second_gru': not args.no_second_gru,
+        'head_size': args.head_size,
+        'num_heads': args.num_heads,
+        'ff_dim': args.ff_dim,
+        'dropout_rate': args.dropout_rate,
+        'mlp_dropout': args.mlp_dropout,
+        'num_blocks': 2,
         'learning_rate': args.learning_rate,
-        'L2_regularization': args.l2_reg,
         'epochs': args.epochs,
         'batch_size': args.batch_size,
+        'patience': args.patience,
         'look_back': args.look_back,
     }
     log_to_mlflow(params, metrics, args.mlflow_uri, args.experiment_name)

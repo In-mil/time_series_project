@@ -38,6 +38,18 @@ def set_seeds(seed: int = SEED):
     random.seed(seed)
 
 
+def warmup_tensorflow():
+    """Pre-initialize TensorFlow to speed up first epoch."""
+    print("Warming up TensorFlow...")
+    # Create dummy model and run inference to trigger JIT compilation
+    dummy_model = tf.keras.Sequential([
+        tf.keras.layers.Dense(1, input_shape=(10,))
+    ])
+    dummy_model.predict(np.zeros((1, 10)), verbose=0)
+    del dummy_model
+    print("TensorFlow ready.")
+
+
 def load_data(data_path: Path) -> pd.DataFrame:
     """Load and validate data from CSV."""
     if not data_path.exists():
@@ -94,10 +106,9 @@ def prepare_features(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.D
     y_val_scaled = scaler_y.transform(y_val.reshape(-1, 1)).ravel()
 
     X_test_scaled = scaler_X.transform(X_test)
-    y_test_scaled = scaler_y.transform(y_test.reshape(-1, 1)).ravel()
 
     return (X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled,
-            X_test_scaled, y_test_scaled, y_test, scaler_y)
+            X_test_scaled, y_test, scaler_y)
 
 
 def build_model(input_shape: int, layer_1_nodes: int, layer_1_dropout: float,
@@ -164,8 +175,8 @@ def train_model(model: tf.keras.Model, X_train: np.ndarray, y_train: np.ndarray,
     return history
 
 
-def evaluate_model(model: tf.keras.Model, X_test: np.ndarray, y_test_scaled: np.ndarray,
-                   y_test: np.ndarray, scaler_y: StandardScaler, history: tf.keras.callbacks.History):
+def evaluate_model(model: tf.keras.Model, X_test: np.ndarray, y_test: np.ndarray,
+                   scaler_y: StandardScaler, history: tf.keras.callbacks.History):
     """Evaluate model and return metrics."""
     # Training metrics from last epoch
     mae_train = history.history['mae'][-1]
@@ -184,34 +195,24 @@ def evaluate_model(model: tf.keras.Model, X_test: np.ndarray, y_test_scaled: np.
     # Test predictions
     y_pred_scaled = model.predict(X_test)
 
-    # Metrics on scaled data
-    test_mae_scaled = mean_absolute_error(y_test_scaled, y_pred_scaled)
-    test_mse_scaled = mean_squared_error(y_test_scaled, y_pred_scaled)
-
-    print("\nTest Set Performance (Scaled):")
-    print(f"   MAE:  {test_mae_scaled:.4f}")
-    print(f"   MSE:  {test_mse_scaled:.4f}")
-
     # Inverse transform to original scale
     y_pred_original = scaler_y.inverse_transform(y_pred_scaled.reshape(-1, 1)).ravel()
 
     # Metrics on original scale
-    test_mae_original = mean_absolute_error(y_test, y_pred_original)
-    test_mse_original = mean_squared_error(y_test, y_pred_original)
+    test_mae = mean_absolute_error(y_test, y_pred_original)
+    test_mse = mean_squared_error(y_test, y_pred_original)
 
-    print("\nTest Set Performance (Original Scale):")
-    print(f"   MAE:  {test_mae_original:.4f}")
-    print(f"   MSE:  {test_mse_original:.4f}")
+    print("\nTest Set Performance:")
+    print(f"   MAE:  {test_mae:.4f}")
+    print(f"   MSE:  {test_mse:.4f}")
 
     return {
         'train_mae': mae_train,
         'train_mse': mse_train,
         'val_mae': val_mae,
         'val_mse': val_mse,
-        'test_mae_scaled': test_mae_scaled,
-        'test_mse_scaled': test_mse_scaled,
-        'test_mae_original': test_mae_original,
-        'test_mse_original': test_mse_original,
+        'test_mae': test_mae,
+        'test_mse': test_mse,
     }
 
 
@@ -273,6 +274,9 @@ def main():
     # Set seeds
     set_seeds(args.seed)
 
+    # Warmup TensorFlow
+    warmup_tensorflow()
+
     # Load data
     print("Loading data...")
     df = load_data(args.data_path)
@@ -283,7 +287,7 @@ def main():
     )
 
     # Prepare features
-    (X_train, y_train, X_val, y_val, X_test, y_test_scaled,
+    (X_train, y_train, X_val, y_val, X_test,
      y_test, scaler_y) = prepare_features(df_train, df_val, df_test, args.target_col)
 
     # Build model
@@ -305,7 +309,7 @@ def main():
     )
 
     # Evaluate model
-    metrics = evaluate_model(model, X_test, y_test_scaled, y_test, scaler_y, history)
+    metrics = evaluate_model(model, X_test, y_test, scaler_y, history)
 
     # Log to MLflow
     params = {

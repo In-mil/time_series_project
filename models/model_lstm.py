@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-GRU Model for Crypto Price Prediction
+LSTM Model for Crypto Price Prediction
 
 Target: Predicting whether the crypto price will be higher in 5 days than today
-Method: Gated Recurrent Unit (GRU) - Recurrent Neural Network with TensorFlow/Keras
+Method: Long Short-Term Memory (LSTM) neural network with TensorFlow/Keras
 
 Usage:
-    python model_gru.py --data-path /path/to/data.csv
-    python model_gru.py --epochs 50 --batch-size 128
+    python model_lstm.py --data-path /path/to/data.csv
+    python model_lstm.py --epochs 50 --batch-size 128
 """
 
 import argparse
@@ -149,37 +149,37 @@ def create_sequences(X_data: np.ndarray, y_data: np.ndarray, df: pd.DataFrame, l
     return np.array(X_sequences), np.array(y_sequences), np.array(original_indices)
 
 
-def build_model(look_back: int, n_features: int, gru_units: int, gru_dropout: float,
-                use_second_gru: bool, learning_rate: float, l2_reg: float) -> tf.keras.Model:
-    """Build and compile the GRU model."""
+def build_model(look_back: int, n_features: int, lstm_units: int, lstm_dropout: float,
+                use_second_lstm: bool, learning_rate: float, l2_reg: float) -> tf.keras.Model:
+    """Build and compile the LSTM model."""
     layers = [tf.keras.layers.Input(shape=(look_back, n_features))]
 
-    if use_second_gru:
+    if use_second_lstm:
         layers.extend([
-            tf.keras.layers.GRU(
-                gru_units,
+            tf.keras.layers.LSTM(
+                lstm_units,
                 return_sequences=True,
                 kernel_regularizer=tf.keras.regularizers.l2(l2_reg),
-                name='gru_layer_1'
+                name='lstm_layer_1'
             ),
-            tf.keras.layers.Dropout(gru_dropout, name='dropout_1'),
-            tf.keras.layers.GRU(
-                gru_units // 2,
+            tf.keras.layers.Dropout(lstm_dropout, name='dropout_1'),
+            tf.keras.layers.LSTM(
+                lstm_units // 2,
                 return_sequences=False,
                 kernel_regularizer=tf.keras.regularizers.l2(l2_reg),
-                name='gru_layer_2'
+                name='lstm_layer_2'
             ),
-            tf.keras.layers.Dropout(gru_dropout, name='dropout_2'),
+            tf.keras.layers.Dropout(lstm_dropout, name='dropout_2'),
         ])
     else:
         layers.extend([
-            tf.keras.layers.GRU(
-                gru_units,
+            tf.keras.layers.LSTM(
+                lstm_units,
                 return_sequences=False,
                 kernel_regularizer=tf.keras.regularizers.l2(l2_reg),
-                name='gru_layer'
+                name='lstm_layer'
             ),
-            tf.keras.layers.Dropout(gru_dropout, name='dropout'),
+            tf.keras.layers.Dropout(lstm_dropout, name='dropout'),
         ])
 
     layers.append(tf.keras.layers.Dense(1, activation='linear', name='output'))
@@ -192,7 +192,7 @@ def build_model(look_back: int, n_features: int, gru_units: int, gru_dropout: fl
         metrics=['mae', 'mse']
     )
 
-    print("\nGRU architecture:")
+    print("\nLSTM architecture:")
     model.summary()
 
     return model
@@ -271,18 +271,18 @@ def log_to_mlflow(params: dict, metrics: dict, mlflow_uri: str, experiment_name:
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    with mlflow.start_run(run_name=f"gru_{timestamp}"):
+    with mlflow.start_run(run_name=f"lstm_{timestamp}"):
         for key, value in params.items():
             mlflow.log_param(key, value)
 
         for key, value in metrics.items():
             mlflow.log_metric(key, value)
 
-        print(f"\nMLflow run logged with name: gru_{timestamp}")
+        print(f"\nMLflow run logged with name: lstm_{timestamp}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Train GRU model for crypto price prediction')
+    parser = argparse.ArgumentParser(description='Train LSTM model for crypto price prediction')
 
     # Data arguments
     parser.add_argument(
@@ -297,9 +297,9 @@ def main():
     parser.add_argument('--target-col', default='future_5_close_higher_than_today', help='Target column')
 
     # Model architecture arguments
-    parser.add_argument('--gru-units', type=int, default=64, help='GRU units in first layer')
-    parser.add_argument('--gru-dropout', type=float, default=0.3, help='Dropout rate for GRU layers')
-    parser.add_argument('--no-second-gru', action='store_true', help='Disable second GRU layer')
+    parser.add_argument('--lstm-units', type=int, default=64, help='LSTM units in first layer')
+    parser.add_argument('--lstm-dropout', type=float, default=0.3, help='Dropout rate for LSTM layers')
+    parser.add_argument('--no-second-lstm', action='store_true', help='Disable second LSTM layer')
     parser.add_argument('--learning-rate', type=float, default=0.0001, help='Learning rate')
     parser.add_argument('--l2-reg', type=float, default=0.0001, help='L2 regularization strength')
     parser.add_argument('--look-back', type=int, default=20, help='Number of past days for sequences')
@@ -312,7 +312,7 @@ def main():
 
     # MLflow arguments
     parser.add_argument('--mlflow-uri', default='http://127.0.0.1:5001', help='MLflow tracking URI')
-    parser.add_argument('--experiment-name', default='gru_experiment', help='MLflow experiment name')
+    parser.add_argument('--experiment-name', default='lstm_experiment', help='MLflow experiment name')
 
     args = parser.parse_args()
 
@@ -356,9 +356,9 @@ def main():
     model = build_model(
         look_back=args.look_back,
         n_features=n_features,
-        gru_units=args.gru_units,
-        gru_dropout=args.gru_dropout,
-        use_second_gru=not args.no_second_gru,
+        lstm_units=args.lstm_units,
+        lstm_dropout=args.lstm_dropout,
+        use_second_lstm=not args.no_second_lstm,
         learning_rate=args.learning_rate,
         l2_reg=args.l2_reg
     )
@@ -377,9 +377,9 @@ def main():
 
     # Log to MLflow
     params = {
-        'gru_units': args.gru_units,
-        'gru_dropout': args.gru_dropout,
-        'use_second_gru': not args.no_second_gru,
+        'lstm_units': args.lstm_units,
+        'lstm_dropout': args.lstm_dropout,
+        'use_second_lstm': not args.no_second_lstm,
         'learning_rate': args.learning_rate,
         'L2_regularization': args.l2_reg,
         'epochs': args.epochs,
