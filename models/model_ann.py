@@ -19,13 +19,14 @@ from pathlib import Path
 # Disable TensorFlow verbose logging (must be before TF import)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
+# IMPORTANT: TensorFlow must be imported BEFORE pandas to avoid hangs on Mac
+import tensorflow as tf
 import numpy as np
 import pandas as pd
-import tensorflow as tf
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.preprocessing import StandardScaler
 
-import mlflow
+# Note: mlflow is imported lazily in log_to_mlflow() to avoid TensorFlow conflicts
 
 # Default seed for reproducibility
 SEED = 42
@@ -223,8 +224,11 @@ def evaluate_model(model: tf.keras.Model, X_train: np.ndarray, X_val: np.ndarray
     }
 
 
-def log_to_mlflow(params: dict, metrics: dict, mlflow_uri: str, experiment_name: str):
-    """Log parameters and metrics to MLflow."""
+def log_to_mlflow(params: dict, metrics: dict, model: tf.keras.Model,
+                  mlflow_uri: str, experiment_name: str):
+    """Log parameters, metrics, and model to MLflow."""
+    import mlflow
+    mlflow.autolog(disable=True)
     mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment(experiment_name)
 
@@ -239,7 +243,14 @@ def log_to_mlflow(params: dict, metrics: dict, mlflow_uri: str, experiment_name:
         for key, value in metrics.items():
             mlflow.log_metric(key, value)
 
+        # Log model to GCS (using legacy method for server compatibility)
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model_path = f"{tmpdir}/model.keras"
+            model.save(model_path)
+            mlflow.log_artifact(model_path, "model")
         print(f"\nMLflow run logged with name: ann_{timestamp}")
+        print("Model artifact saved to GCS")
 
 
 def main():
@@ -299,7 +310,7 @@ def main():
 
     # Build model
     model = build_model(
-        input_shape=X_train.shape[1],
+        input_shape=X_train_scaled.shape[1],
         layer_1_nodes=args.layer_1_nodes,
         layer_1_dropout=args.layer_1_dropout,
         layer_2_nodes=args.layer_2_nodes,
@@ -311,12 +322,13 @@ def main():
 
     # Train model
     history = train_model(
-        model, X_train, y_train, X_val, y_val,
+        model, X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled,
         args.epochs, args.batch_size, args.patience
     )
 
     # Evaluate model
-    metrics = evaluate_model(model, X_test, y_test, scaler_y, history)
+    metrics = evaluate_model(model, X_train_scaled, X_val_scaled, X_test_scaled,
+                            y_train, y_val, y_test, scaler_y)
 
     # Log to MLflow
     params = {
@@ -329,7 +341,7 @@ def main():
         'epochs': args.epochs,
         'batch_size': args.batch_size,
     }
-    log_to_mlflow(params, metrics, args.mlflow_uri, args.experiment_name)
+    log_to_mlflow(params, metrics, model, args.mlflow_uri, args.experiment_name)
 
 
 if __name__ == "__main__":

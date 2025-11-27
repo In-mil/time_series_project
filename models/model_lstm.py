@@ -19,13 +19,14 @@ from pathlib import Path
 # Disable TensorFlow verbose logging (must be before TF import)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
+# IMPORTANT: TensorFlow must be imported BEFORE pandas to avoid hangs on Mac
+import tensorflow as tf
 import numpy as np
 import pandas as pd
-import tensorflow as tf
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.preprocessing import StandardScaler
 
-import mlflow
+# Note: mlflow is imported lazily in log_to_mlflow() to avoid TensorFlow conflicts
 
 # Default seed for reproducibility
 SEED = 42
@@ -274,8 +275,11 @@ def evaluate_model(model: tf.keras.Model,
     }
 
 
-def log_to_mlflow(params: dict, metrics: dict, mlflow_uri: str, experiment_name: str):
-    """Log parameters and metrics to MLflow."""
+def log_to_mlflow(params: dict, metrics: dict, model: tf.keras.Model,
+                  mlflow_uri: str, experiment_name: str):
+    """Log parameters, metrics, and model to MLflow."""
+    import mlflow
+    mlflow.autolog(disable=True)
     mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment(experiment_name)
 
@@ -288,7 +292,14 @@ def log_to_mlflow(params: dict, metrics: dict, mlflow_uri: str, experiment_name:
         for key, value in metrics.items():
             mlflow.log_metric(key, value)
 
+        # Log model to GCS (using legacy method for server compatibility)
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model_path = f"{tmpdir}/model.keras"
+            model.save(model_path)
+            mlflow.log_artifact(model_path, "model")
         print(f"\nMLflow run logged with name: lstm_{timestamp}")
+        print("Model artifact saved to GCS")
 
 
 def main():
@@ -397,7 +408,7 @@ def main():
         'batch_size': args.batch_size,
         'look_back': args.look_back,
     }
-    log_to_mlflow(params, metrics, args.mlflow_uri, args.experiment_name)
+    log_to_mlflow(params, metrics, model, args.mlflow_uri, args.experiment_name)
 
 
 if __name__ == "__main__":
