@@ -28,21 +28,6 @@ The models are trained and versioned with **DVC**, evaluated via **MLflow**, and
 
 ---
 
-##  Tracking & Storage
-
-| Component | Location / Tool | Contents | Managed by |
-|------------|------------------|-----------|-------------|
-| **Code & Configs** | GitHub Repo (`main` branch) | Python scripts, notebooks, YAMLs | Git |
-| **Datasets** | Google Cloud Storage (GCS) → `gs://time-series-dvc-storage/.dvc/cache` | Versioned raw & processed CSV files | DVC |
-| **Models** | DVC Remote (GCS) | Trained `.keras` model weights | DVC |
-| **Evaluation Reports** | `/reports/metrics.json` | Final metrics (MAE, MSE) | Git |
-| **Experiments** | MLflow (`mlflow.db`) | Logged metrics & artifacts | MLflow |
-| **CI/CD** | `.github/workflows/dvc_pipeline.yml` | Automated training & evaluation | GitHub Actions |
-| **Docker Image** | Google Container Registry (GCR) | Production-ready API container | Docker + GH Actions |
-
-
----
-
 ## Project Structure
 
 ```
@@ -69,71 +54,12 @@ The models are trained and versioned with **DVC**, evaluated via **MLflow**, and
 └── requirements.txt          # Dependencies
 ```
 
----
-
-## CI/CD Pipeline Optimizations
-
-The project features a highly optimized CI/CD pipeline with significant performance improvements:
-
-### Performance Metrics
-- **Initial pipeline:** ~60 minutes per run (sequential training)
-- **Optimized pipeline:** ~3 minutes when unchanged, ~15 minutes with changes
-- **Improvement:** 95% faster for unchanged code, 75% faster for full retraining
-
-### Key Optimizations
-1. **Dependency Caching**
-   - Python packages cached based on `requirements.txt` hash
-   - Reduces installation time from 3 min → 30 sec
-
-2. **DVC Artifact Caching**
-   - Models and datasets cached between runs
-   - Only pulls what changed
-   - Reduces pull time from 2 min → 10 sec
-
-3. **Parallel Model Training**
-   - 4 base models train simultaneously instead of sequentially
-   - Reduces training time from 50 min → 12 min
-
-4. **Smart Stage Skipping**
-   - DVC automatically skips unchanged stages
-   - Only retrain models when code/data changes
-
----
-
-## Live Demo
-
-| Service | URL | Description |
-|---------|-----|-------------|
-| **FastAPI** |  [Coming Soon] | REST API for predictions |
-| **MLflow** |  [Coming Soon] | Experiment tracking UI |
-| **Grafana** | [Coming Soon] | Monitoring dashboard |
-
----
-
-## Local Development
 
 ### Prerequisites
 - Python 3.11+
 - Docker & Docker Compose
 - Google Cloud account (for DVC remote)
 - DVC installed
-
-### Quick Start
-
-```bash
-# Clone repository
-git clone https://github.com/In-mil/time_series_project.git
-cd time_series_project
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Pull models and data from DVC
-dvc pull -r gcsremote
-
-# Start services with Docker Compose
-docker-compose -f docker-compose.monitoring.yml up -d
-```
 
 ### Services will be available at:
 - FastAPI: http://localhost:8000
@@ -154,11 +80,11 @@ docker-compose -f docker-compose.monitoring.yml up -d
           ┌───────────────────────────────┐
           │       GitHub Actions Runner   │
           │-------------------------------│
-          │Pull data/models via DVC   │
-          │Train models (ANN, LSTM…)  │
-          │Evaluate & log metrics     │
+          │Pull data/models via DVC       │
+          │Train models (ANN, LSTM…)      │
+          │Evaluate & log metrics         │
           │Push artifacts to GCS + MLflow │
-          └────────────┬────────────────────────┘
+          └────────────┬──────────────────┘
                        │
                        ▼
         ┌────────────────────────────────────────┐
@@ -188,7 +114,7 @@ docker-compose -f docker-compose.monitoring.yml up -d
        │ - Loads latest model from DVC cache      │
        │ - Exposes /predict endpoint              │
        │ - Optional REST API for live forecasts   │
-       └────────────────┬────────────────────────┘
+       └─────────────────┬────────────────────────┘
                          │
                          ▼
          ┌────────────────────────────────────┐
