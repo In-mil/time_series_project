@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Time Series Prediction API",
-    description="Ensemble model API for cryptocurrency price predictions",
-    version="1.0.0"
+    description="ML models API for cryptocurrency price change predictions (% change in 5 days)",
+    version="2.0.0"
 )
 
 # Prometheus metrics
@@ -91,9 +91,9 @@ class SequenceRequest(BaseModel):
     )
 
 
-class EnsembleResponse(BaseModel):
-    prediction: float
-    components: dict
+class PredictionResponse(BaseModel):
+    predictions: dict = Field(..., description="Individual model predictions (% price change in 5 days)")
+    unit: str = Field(default="percent_change_5d", description="Unit of prediction values")
 
 
 @app.on_event("startup")
@@ -184,7 +184,7 @@ def get_drift_report():
     }
 
 
-@app.post("/predict", response_model=EnsembleResponse)
+@app.post("/predict", response_model=PredictionResponse)
 def predict(request: SequenceRequest):
     # Generate request ID for tracking
     request_id = str(uuid.uuid4())
@@ -300,15 +300,15 @@ def predict(request: SequenceRequest):
             except Exception as e:
                 logger.warning(f"[{request_id}] Drift tracking failed: {e}")
 
-        logger.info(f"[{request_id}] Prediction completed successfully. Ensemble: {ensemble_original:.4f}")
-        return EnsembleResponse(
-            prediction=float(ensemble_original),
-            components={
+        logger.info(f"[{request_id}] Prediction completed successfully")
+        return PredictionResponse(
+            predictions={
                 "ANN": float(ann_original),
                 "GRU": float(gru_original),
                 "LSTM": float(lstm_original),
                 "Transformer": float(trf_original),
             },
+            unit="percent_change_5d"
         )
 
     except HTTPException:

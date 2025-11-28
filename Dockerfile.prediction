@@ -1,0 +1,35 @@
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libhdf5-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    fastapi \
+    "uvicorn[standard]" \
+    tensorflow==2.17.0 \
+    scikit-learn \
+    numpy \
+    pandas \
+    joblib \
+    pydantic \
+    prometheus-client \
+    prometheus-fastapi-instrumentator \
+    evidently
+
+# Copy application code
+COPY service/ ./service/
+COPY models/*.keras ./models/
+COPY artifacts/ensemble/ ./artifacts/ensemble/
+
+# Copy drift detection reference data
+COPY artifacts/drift_detection/ ./artifacts/drift_detection/
+
+EXPOSE 8000
+
+# Run the API
+CMD ["uvicorn", "service.app:app", "--host", "0.0.0.0", "--port", "8000"]

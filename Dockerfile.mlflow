@@ -1,20 +1,22 @@
 FROM python:3.11-slim
 
-# Installiere MLflow + GCS-Unterstützung
+# Install MLflow + GCS + PostgreSQL support
 RUN pip install --no-cache-dir \
     mlflow==2.9.2 \
     google-cloud-storage==2.19.0 \
-    psycopg2-binary
+    psycopg2-binary \
+    cloud-sql-python-connector[pg8000]
 
-# Arbeitsverzeichnis
+# Working directory
 WORKDIR /app
 
-# Port für MLflow UI
+# Port for MLflow UI
 EXPOSE 5000
 
-# Starte MLflow Server
-CMD ["mlflow", "server", \
-     "--host", "0.0.0.0", \
-     "--port", "5000", \
-     "--backend-store-uri", "sqlite:///mlflow.db", \
-     "--default-artifact-root", "gs://time-series-mlflow-data/artifacts"]
+# Start MLflow Server with PostgreSQL backend
+# DATABASE_URL will be set via Cloud Run environment variable
+CMD mlflow server \
+    --host 0.0.0.0 \
+    --port 5000 \
+    --backend-store-uri ${DATABASE_URL} \
+    --default-artifact-root gs://time-series-mlflow-data/artifacts
