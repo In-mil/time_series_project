@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 # Install MLflow + GCS + PostgreSQL support
 RUN pip install --no-cache-dir \
-    mlflow==2.9.2 \
+    mlflow==3.5.1 \
     google-cloud-storage==2.19.0 \
     psycopg2-binary \
     cloud-sql-python-connector[pg8000]
@@ -15,8 +15,5 @@ EXPOSE 5000
 
 # Start MLflow Server with PostgreSQL backend
 # DATABASE_URL will be set via Cloud Run environment variable
-CMD mlflow server \
-    --host 0.0.0.0 \
-    --port 5000 \
-    --backend-store-uri ${DATABASE_URL} \
-    --default-artifact-root gs://time-series-mlflow-data/artifacts
+# --allowed-hosts '*' disables DNS rebinding protection for Cloud Run
+CMD ["sh", "-c", "mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri ${DATABASE_URL} --default-artifact-root gs://time-series-mlflow-data/artifacts --allowed-hosts '*'"]
