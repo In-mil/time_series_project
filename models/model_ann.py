@@ -32,6 +32,9 @@ import joblib
 # Default seed for reproducibility
 SEED = 42
 
+# Default GCS path for dataset (cloud-first workflow)
+GCS_DATA_PATH = 'gs://time-series-mlflow-data/data/final_data/20251115_dataset_crp.csv'
+
 
 def set_seeds(seed: int = SEED):
     """Set random seeds for reproducibility."""
@@ -53,10 +56,13 @@ def warmup_tensorflow():
     print("TensorFlow ready.")
 
 
-def load_data(data_path: Path) -> pd.DataFrame:
-    """Load and validate data from CSV."""
-    if not data_path.exists():
-        raise FileNotFoundError(f"Data file not found: {data_path}")
+def load_data(data_path: str) -> pd.DataFrame:
+    """Load data from local path or GCS.
+
+    Supports both local file paths and GCS URLs (gs://bucket/path).
+    For GCS URLs, requires 'gcsfs' package to be installed.
+    """
+    print(f"Loading data from: {data_path}")
     return pd.read_csv(data_path)
 
 
@@ -230,6 +236,7 @@ def log_to_mlflow(params: dict, metrics: dict, model: tf.keras.Model,
                   mlflow_uri: str, experiment_name: str):
     """Log parameters, metrics, and model to MLflow."""
     import mlflow
+    import mlflow.keras
     mlflow.autolog(disable=True)
     mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment(experiment_name)
@@ -245,12 +252,8 @@ def log_to_mlflow(params: dict, metrics: dict, model: tf.keras.Model,
         for key, value in metrics.items():
             mlflow.log_metric(key, value)
 
-        # Log model to GCS (using legacy method for server compatibility)
-        import tempfile
-        with tempfile.TemporaryDirectory() as tmpdir:
-            model_path = f"{tmpdir}/model.keras"
-            model.save(model_path)
-            mlflow.log_artifact(model_path, "model")
+        # Log model to MLflow (enables Model Registry)
+        mlflow.keras.log_model(model, name="model")
         print(f"\nMLflow run logged with name: ann_{timestamp}")
         print("Model artifact saved to GCS")
 
@@ -261,9 +264,9 @@ def main():
     # Data arguments
     parser.add_argument(
         '--data-path',
-        type=Path,
-        default=Path(__file__).parent.parent / 'data' / 'final_data' / '20251115_dataset_crp.csv',
-        help='Path to the dataset CSV file'
+        type=str,
+        default=GCS_DATA_PATH,
+        help='Path to the dataset CSV file (local path or gs:// URL)'
     )
     parser.add_argument('--split-date-train', default='2024-07-01', help='Training split date')
     parser.add_argument('--split-date-val', default='2024-10-01', help='Validation split date')

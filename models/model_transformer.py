@@ -330,6 +330,7 @@ def log_to_mlflow(params: dict, metrics: dict, model: tf.keras.Model,
                   mlflow_uri: str, experiment_name: str):
     """Log parameters, metrics, and model to MLflow."""
     import mlflow
+    import mlflow.keras
     mlflow.autolog(disable=True)
     mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment(experiment_name)
@@ -343,12 +344,8 @@ def log_to_mlflow(params: dict, metrics: dict, model: tf.keras.Model,
         for key, value in metrics.items():
             mlflow.log_metric(key, value)
 
-        # Log model to GCS (using legacy method for server compatibility)
-        import tempfile
-        with tempfile.TemporaryDirectory() as tmpdir:
-            model_path = f"{tmpdir}/model.keras"
-            model.save(model_path)
-            mlflow.log_artifact(model_path, "model")
+        # Log model to MLflow (enables Model Registry)
+        mlflow.keras.log_model(model, name="model")
         print(f"\nMLflow run logged with name: transformer_{timestamp}")
         print("Model artifact saved to GCS")
 

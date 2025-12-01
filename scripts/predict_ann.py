@@ -14,6 +14,8 @@ import argparse
 import os
 from pathlib import Path
 
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
 # Disable TensorFlow verbose logging
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -22,6 +24,9 @@ import pandas as pd
 import joblib
 from tensorflow.keras.models import load_model
 
+# MLflow for Model Registry
+import mlflow
+import mlflow.keras
 
 # Paths
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +34,10 @@ DEFAULT_DATA_PATH = REPO_ROOT / 'data' / 'final_data' / '20251115_dataset_crp.cs
 MODEL_PATH = REPO_ROOT / 'models' / 'model_ann.keras'
 SCALER_X_PATH = REPO_ROOT / 'artifacts' / 'ensemble' / 'scaler_X.pkl'
 SCALER_Y_PATH = REPO_ROOT / 'artifacts' / 'ensemble' / 'scaler_y.pkl'
+
+# MLflow settings
+MLFLOW_TRACKING_URI = 'https://mlflow-server-101264457040.europe-west3.run.app'
+MLFLOW_MODEL_NAME = 'Model_ANN'
 
 # Columns to drop from features (same as training)
 COLS_TO_DROP = [
@@ -48,23 +57,50 @@ COLS_TO_DROP = [
 TARGET_COL = 'future_5_close_higher_than_today'
 
 
-def load_artifacts():
-    """Load model and scalers."""
+def load_artifacts(use_mlflow: bool = False, model_version: str = "latest"):
+    """Load model and scalers.
+
+    Args:
+        use_mlflow: If True, load model from MLflow Model Registry
+        model_version: Version to load - "latest", version number, or alias like "@champion"
+    """
     print("Loading model and scalers...")
 
-    if not MODEL_PATH.exists():
-        raise FileNotFoundError(f"Model not found: {MODEL_PATH}")
+    # Load scalers (always from local files)
     if not SCALER_X_PATH.exists():
         raise FileNotFoundError(f"Scaler X not found: {SCALER_X_PATH}")
     if not SCALER_Y_PATH.exists():
         raise FileNotFoundError(f"Scaler Y not found: {SCALER_Y_PATH}")
 
-    model = load_model(MODEL_PATH)
     scaler_X = joblib.load(SCALER_X_PATH)
     scaler_y = joblib.load(SCALER_Y_PATH)
-
-    print(f"  Model loaded: {MODEL_PATH.name}")
     print(f"  Scalers loaded")
+
+    # Load model
+    if use_mlflow:
+        print(f"  Loading from MLflow Model Registry...")
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+
+        # Build model URI
+        if model_version.startswith("@"):
+            # Alias like "@champion"
+            model_uri = f"models:/{MLFLOW_MODEL_NAME}{model_version}"
+        elif model_version == "latest":
+            # Latest version
+            model_uri = f"models:/{MLFLOW_MODEL_NAME}/latest"
+        else:
+            # Specific version number
+            model_uri = f"models:/{MLFLOW_MODEL_NAME}/{model_version}"
+
+        print(f"  Model URI: {model_uri}")
+        model = mlflow.keras.load_model(model_uri)
+        print(f"  Model loaded from MLflow: {MLFLOW_MODEL_NAME} ({model_version})")
+    else:
+        # Load from local file
+        if not MODEL_PATH.exists():
+            raise FileNotFoundError(f"Model not found: {MODEL_PATH}")
+        model = load_model(MODEL_PATH)
+        print(f"  Model loaded: {MODEL_PATH.name}")
 
     return model, scaler_X, scaler_y
 
@@ -167,13 +203,27 @@ def main():
         default=None,
         help='Filter for specific ticker (e.g., btcusd)'
     )
+    parser.add_argument(
+        '--mlflow',
+        action='store_true',
+        help='Load model from MLflow Model Registry instead of local file'
+    )
+    parser.add_argument(
+        '--model-version',
+        type=str,
+        default='latest',
+        help='Model version to load: "latest", version number, or alias like "@champion"'
+    )
     args = parser.parse_args()
 
     print("ANN Prediction Script")
     print("=" * 10)
 
     # Load artifacts
-    model, scaler_X, scaler_y = load_artifacts()
+    model, scaler_X, scaler_y = load_artifacts(
+        use_mlflow=args.mlflow,
+        model_version=args.model_version
+    )
 
     # Load data
     df = load_data(args.data_path)
@@ -204,15 +254,33 @@ def main():
     # Save results
     results = save_results(df, predictions, args.output)
 
-    print("I'm done! 💃🏻")
-    print(f"Results saved to: {args.output}")
-    print("=" * 60)
-
     # Show predictions (sorted by predicted change)
     print("\nPredictions (sorted by expected 5-day change):")
     results_sorted = results.sort_values('predicted', ascending=False)
     print(results_sorted[['ticker', 'date', 'predicted']].to_string(index=False))
 
+    # Calculate and display metrics (only if actual values exist)
+    if TARGET_COL in df.columns:
+        actual = results['actual']
+        predicted = results['predicted']
+
+     
+        print("MODEL METRICS")
+        print("=" * 10)
+        
+        mse = mean_squared_error(actual, predicted)
+        rmse = np.sqrt(mse)
+        mae = mean_absolute_error(actual, predicted)
+        r2 = r2_score(actual, predicted)
+
+        print(f"  MSE:  {mse:.4f}")
+        print(f"  RMSE: {rmse:.4f}")
+        print(f"  MAE:  {mae:.4f}")
+        print(f"  R²:   {r2:.4f}")
+        print("=" * 10)
+
+    print("\nI'm done!")
+    print(f"Results saved to: {args.output}")
 
 if __name__ == "__main__":
     main()
