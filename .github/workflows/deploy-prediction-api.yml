@@ -8,6 +8,7 @@ env:
   REGION: europe-west3
   SERVICE_NAME: prediction-api
   GCS_BUCKET: time-series-mlflow-data
+  DOCKER_REPO: europe-west3-docker.pkg.dev/time-series-capstone/docker-repo
 
 jobs:
   deploy:
@@ -35,20 +36,20 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -f Dockerfile.prediction -t gcr.io/$PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA .
+        docker build -f Dockerfile.prediction -t $DOCKER_REPO/$SERVICE_NAME:$GITHUB_SHA .
 
-    - name: Configure Docker for GCR
+    - name: Configure Docker for Artifact Registry
       run: |
-        gcloud auth configure-docker --quiet
+        gcloud auth configure-docker europe-west3-docker.pkg.dev --quiet
 
-    - name: Push to GCR
+    - name: Push to Artifact Registry
       run: |
-        docker push gcr.io/$PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA
+        docker push $DOCKER_REPO/$SERVICE_NAME:$GITHUB_SHA
 
     - name: Deploy to Cloud Run
       run: |
         gcloud run deploy $SERVICE_NAME \
-          --image gcr.io/$PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA \
+          --image $DOCKER_REPO/$SERVICE_NAME:$GITHUB_SHA \
           --region $REGION \
           --platform managed \
           --allow-unauthenticated \
