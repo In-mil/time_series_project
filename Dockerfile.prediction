@@ -19,7 +19,8 @@ RUN pip install --no-cache-dir \
     pydantic \
     prometheus-client \
     prometheus-fastapi-instrumentator \
-    evidently
+    evidently \
+    sniffio
 
 # Copy application code
 COPY service/ ./service/
