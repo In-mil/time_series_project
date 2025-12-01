@@ -76,16 +76,17 @@ def split_data(df: pd.DataFrame, split_date_train: str, split_date_val: str, spl
 
 def prepare_features(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.DataFrame, target_col: str):
     """Prepare features and targets, apply scaling."""
-    # Target columns to exclude
-    target_cols = [
+    # Columns to exclude from features
+    exclude_cols = [
+        'Unnamed: 0',  # Index column - not a feature
         'future_5_close_higher_than_today', 'future_10_close_higher_than_today',
         'future_5_close_lower_than_today', 'future_10_close_lower_than_today',
         'higher_close_today_vs_future_5_close', 'higher_close_today_vs_future_10_close',
         'lower_close_today_vs_future_5_close', 'lower_close_today_vs_future_10_close'
     ]
 
-    # Features: exclude targets but KEEP 'ticker' and 'date' for sequence creation
-    feature_cols = [col for col in df_train.columns if col not in target_cols]
+    # Features: exclude targets and index, but KEEP 'ticker' and 'date' for sequence creation
+    feature_cols = [col for col in df_train.columns if col not in exclude_cols]
 
     X_train = df_train[feature_cols].copy()
     y_train = df_train[target_col].values
@@ -409,6 +410,11 @@ def main():
         'look_back': args.look_back,
     }
     log_to_mlflow(params, metrics, model, args.mlflow_uri, args.experiment_name)
+
+    # Save model locally
+    models_dir = Path(__file__).parent
+    model.save(models_dir / 'model_gru.keras')
+    print(f"\nModel saved: {models_dir / 'model_gru.keras'}")
 
 
 if __name__ == "__main__":

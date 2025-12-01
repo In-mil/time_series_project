@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.preprocessing import StandardScaler
+import joblib
 
 # Note: mlflow is imported lazily in log_to_mlflow() to avoid TensorFlow conflicts
 
@@ -79,7 +80,8 @@ def prepare_features(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.D
     """Prepare features and targets, apply scaling."""
     # Columns to drop from features
     x_cols_to_drop = [
-        'ticker', 'date', 'future_5_close_higher_than_today', 'future_10_close_higher_than_today',
+        'Unnamed: 0', 'ticker', 'date',
+        'future_5_close_higher_than_today', 'future_10_close_higher_than_today',
         'future_5_close_lower_than_today', 'future_10_close_lower_than_today',
         'higher_close_today_vs_future_5_close', 'higher_close_today_vs_future_10_close',
         'lower_close_today_vs_future_5_close', 'lower_close_today_vs_future_10_close'
@@ -110,7 +112,7 @@ def prepare_features(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.D
     X_test_scaled = scaler_X.transform(X_test)
 
     return (X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled,
-            X_test_scaled, y_train, y_val, y_test, scaler_y)
+            X_test_scaled, y_train, y_val, y_test, scaler_X, scaler_y)
 
 
 def build_model(input_shape: int, layer_1_nodes: int, layer_1_dropout: float,
@@ -306,7 +308,7 @@ def main():
 
     # Prepare features
     (X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled, X_test_scaled,
-     y_train, y_val, y_test, scaler_y) = prepare_features(df_train, df_val, df_test, args.target_col)
+     y_train, y_val, y_test, scaler_X, scaler_y) = prepare_features(df_train, df_val, df_test, args.target_col)
 
     # Build model
     model = build_model(
@@ -342,6 +344,20 @@ def main():
         'batch_size': args.batch_size,
     }
     log_to_mlflow(params, metrics, model, args.mlflow_uri, args.experiment_name)
+
+    # Save model and scalers locally
+    models_dir = Path(__file__).parent
+    artifacts_dir = models_dir.parent / 'artifacts' / 'ensemble'
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    model.save(models_dir / 'model_ann.keras')
+    joblib.dump(scaler_X, artifacts_dir / 'scaler_X.pkl')
+    joblib.dump(scaler_y, artifacts_dir / 'scaler_y.pkl')
+
+    print(f"\nArtifacts saved:")
+    print(f"  Model: {models_dir / 'model_ann.keras'}")
+    print(f"  Scaler X: {artifacts_dir / 'scaler_X.pkl'}")
+    print(f"  Scaler Y: {artifacts_dir / 'scaler_y.pkl'}")
 
 
 if __name__ == "__main__":

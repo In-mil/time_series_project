@@ -1,0 +1,61 @@
+name: Deploy Prediction API
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+env:
+  PROJECT_ID: mlflow-testpj
+  REGION: europe-west3
+  SERVICE_NAME: prediction-api
+  GCS_BUCKET: time-series-mlflow-data
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Download models from GCS
+      run: |
+        mkdir -p models artifacts/ensemble artifacts/drift_detection data/final_data
+        gsutil cp gs://$GCS_BUCKET/artifacts/latest/*.keras models/
+        gsutil cp gs://$GCS_BUCKET/artifacts/latest/scaler_*.pkl artifacts/ensemble/
+        gsutil cp -r gs://$GCS_BUCKET/artifacts/latest/drift_detection/* artifacts/drift_detection/ || true
+        gsutil cp gs://$GCS_BUCKET/data/final_data/20251115_dataset_crp.csv data/final_data/ || true
+
+    - name: Build Docker image
+      run: |
+        docker build -f Dockerfile.prediction -t gcr.io/$PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA .
+
+    - name: Configure Docker for GCR
+      run: |
+        gcloud auth configure-docker --quiet
+
+    - name: Push to GCR
+      run: |
+        docker push gcr.io/$PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA
+
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy $SERVICE_NAME \
+          --image gcr.io/$PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA \
+          --region $REGION \
+          --platform managed \
+          --allow-unauthenticated \
+          --memory 2Gi \
+          --cpu 1 \
+          --timeout 300
+
+    - name: Show deployment URL
+      run: |
+        gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)'

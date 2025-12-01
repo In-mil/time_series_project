@@ -1,7 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict
 import numpy as np
+import pandas as pd
 import joblib
 from pathlib import Path
 from tensorflow.keras.models import load_model
@@ -325,3 +326,95 @@ def predict(request: SequenceRequest):
             status_code=500,
             detail=f"Internal server error during prediction: {str(e)}"
         )
+
+
+# Columns to drop for batch predictions (same as training)
+BATCH_COLS_TO_DROP = [
+    'Unnamed: 0', 'ticker', 'date',
+    'future_5_close_higher_than_today', 'future_10_close_higher_than_today',
+    'future_5_close_lower_than_today', 'future_10_close_lower_than_today',
+    'higher_close_today_vs_future_5_close', 'higher_close_today_vs_future_10_close',
+    'lower_close_today_vs_future_5_close', 'lower_close_today_vs_future_10_close'
+]
+
+# Data path for batch predictions
+DATA_PATH = REPO_ROOT / "data" / "final_data" / "20251115_dataset_crp.csv"
+
+
+class BatchPredictionResponse(BaseModel):
+    date: str = Field(..., description="Prediction date")
+    predictions: List[Dict] = Field(..., description="Predictions for all tickers")
+    count: int = Field(..., description="Number of predictions")
+
+
+@app.get("/predict/batch", response_model=BatchPredictionResponse)
+def predict_batch(ticker: Optional[str] = None):
+    """
+    Batch prediction for all cryptocurrencies using latest available data.
+
+    - Returns 5-day price change predictions for all tickers
+    - Sorted by predicted change (highest first)
+    - Optionally filter by ticker: /predict/batch?ticker=btcusd
+    """
+    request_id = str(uuid.uuid4())
+    logger.info(f"[{request_id}] Batch prediction request")
+
+    try:
+        # Load data
+        if not DATA_PATH.exists():
+            raise HTTPException(status_code=500, detail=f"Data file not found: {DATA_PATH}")
+
+        df = pd.read_csv(DATA_PATH)
+        logger.info(f"[{request_id}] Loaded {len(df)} rows")
+
+        # Filter to latest date
+        latest_date = df['date'].max()
+        df = df[df['date'] == latest_date].copy()
+        logger.info(f"[{request_id}] Filtered to {latest_date}: {len(df)} rows")
+
+        # Filter by ticker if specified
+        if ticker:
+            df = df[df['ticker'] == ticker.lower()].copy()
+            if len(df) == 0:
+                raise HTTPException(status_code=404, detail=f"Ticker not found: {ticker}")
+            logger.info(f"[{request_id}] Filtered to ticker {ticker}: {len(df)} rows")
+
+        # Prepare features
+        cols_to_drop = [c for c in BATCH_COLS_TO_DROP if c in df.columns]
+        X = df.drop(cols_to_drop, axis='columns')
+
+        # Scale features
+        X_scaled = scaler_X.transform(X)
+
+        # Run ANN predictions (best performing model)
+        start_time = time.time()
+        y_pred_scaled = model_ann.predict(X_scaled, verbose=0)
+        y_pred = scaler_y.inverse_transform(y_pred_scaled).ravel()
+        latency = (time.time() - start_time) * 1000
+        logger.info(f"[{request_id}] ANN predictions completed in {latency:.2f}ms")
+
+        # Build results
+        results = []
+        for i, (_, row) in enumerate(df.iterrows()):
+            results.append({
+                "ticker": row['ticker'],
+                "predicted_5d_change": round(float(y_pred[i]), 2)
+            })
+
+        # Sort by predicted change (highest first)
+        results.sort(key=lambda x: x['predicted_5d_change'], reverse=True)
+
+        PREDICTION_COUNTER.labels(model='ann_batch').inc(len(results))
+
+        logger.info(f"[{request_id}] Returning {len(results)} predictions")
+        return BatchPredictionResponse(
+            date=latest_date,
+            predictions=results,
+            count=len(results)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[{request_id}] Batch prediction failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

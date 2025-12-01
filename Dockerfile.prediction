@@ -29,6 +29,9 @@ COPY artifacts/ensemble/ ./artifacts/ensemble/
 # Copy drift detection reference data
 COPY artifacts/drift_detection/ ./artifacts/drift_detection/
 
+# Copy data for batch predictions
+COPY data/final_data/20251115_dataset_crp.csv ./data/final_data/
+
 EXPOSE 8000
 
 # Run the API
