@@ -4,7 +4,7 @@ on:
   workflow_dispatch:  # Manual trigger only
 
 env:
-  PROJECT_ID: mlflow-testpj
+  PROJECT_ID: time-series-capstone
   REGION: europe-west3
   SERVICE_NAME: prediction-api
   GCS_BUCKET: time-series-mlflow-data
