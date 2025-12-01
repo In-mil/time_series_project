@@ -54,7 +54,8 @@ jobs:
           --platform managed \
           --allow-unauthenticated \
           --memory 2Gi \
-          --cpu 1 \
+          --cpu 2 \
+          --cpu-boost \
           --timeout 300
 
     - name: Show deployment URL
