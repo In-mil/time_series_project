@@ -19,6 +19,8 @@ notebooks/
 
 # Data directory (only specific files copied)
 data/
+!data/final_data/
+!data/final_data/20251115_dataset_crp.csv
 
 # Figures
 figures/
