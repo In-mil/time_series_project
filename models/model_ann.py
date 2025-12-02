@@ -233,10 +233,12 @@ def evaluate_model(model: tf.keras.Model, X_train: np.ndarray, X_val: np.ndarray
 
 
 def log_to_mlflow(params: dict, metrics: dict, model: tf.keras.Model,
+                  scaler_X, scaler_y,
                   mlflow_uri: str, experiment_name: str):
-    """Log parameters, metrics, and model to MLflow."""
+    """Log parameters, metrics, model and scalers to MLflow."""
     import mlflow
     import mlflow.keras
+    import tempfile
     mlflow.autolog(disable=True)
     mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment(experiment_name)
@@ -252,10 +254,19 @@ def log_to_mlflow(params: dict, metrics: dict, model: tf.keras.Model,
         for key, value in metrics.items():
             mlflow.log_metric(key, value)
 
+        # Log scalers as artifacts
+        with tempfile.TemporaryDirectory() as tmpdir:
+            scaler_X_path = Path(tmpdir) / "scaler_X.pkl"
+            scaler_y_path = Path(tmpdir) / "scaler_y.pkl"
+            joblib.dump(scaler_X, scaler_X_path)
+            joblib.dump(scaler_y, scaler_y_path)
+            mlflow.log_artifact(str(scaler_X_path), "scalers")
+            mlflow.log_artifact(str(scaler_y_path), "scalers")
+
         # Log model to MLflow (enables Model Registry)
         mlflow.keras.log_model(model, name="model")
         print(f"\nMLflow run logged with name: ann_{timestamp}")
-        print("Model artifact saved to GCS")
+        print("Model and scalers saved to MLflow/GCS")
 
 
 def main():
@@ -346,21 +357,9 @@ def main():
         'epochs': args.epochs,
         'batch_size': args.batch_size,
     }
-    log_to_mlflow(params, metrics, model, args.mlflow_uri, args.experiment_name)
+    log_to_mlflow(params, metrics, model, scaler_X, scaler_y, args.mlflow_uri, args.experiment_name)
 
-    # Save model and scalers locally
-    models_dir = Path(__file__).parent
-    artifacts_dir = models_dir.parent / 'artifacts' / 'ensemble'
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-
-    model.save(models_dir / 'model_ann.keras')
-    joblib.dump(scaler_X, artifacts_dir / 'scaler_X.pkl')
-    joblib.dump(scaler_y, artifacts_dir / 'scaler_y.pkl')
-
-    print(f"\nArtifacts saved:")
-    print(f"  Model: {models_dir / 'model_ann.keras'}")
-    print(f"  Scaler X: {artifacts_dir / 'scaler_X.pkl'}")
-    print(f"  Scaler Y: {artifacts_dir / 'scaler_y.pkl'}")
+    print(f"\nAll artifacts saved to MLflow Registry")
 
 
 if __name__ == "__main__":

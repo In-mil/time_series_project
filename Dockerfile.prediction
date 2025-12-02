@@ -20,12 +20,13 @@ RUN pip install --no-cache-dir \
     prometheus-client \
     prometheus-fastapi-instrumentator \
     evidently \
-    sniffio
+    sniffio \
+    mlflow \
+    google-cloud-storage
 
 # Copy application code
 COPY service/ ./service/
-COPY models/*.keras ./models/
-COPY artifacts/ensemble/ ./artifacts/ensemble/
+# Models and scalers are loaded from MLflow Registry at runtime
 
 # Copy drift detection reference data
 COPY artifacts/drift_detection/ ./artifacts/drift_detection/

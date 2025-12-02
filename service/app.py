@@ -5,14 +5,19 @@ import numpy as np
 import pandas as pd
 import joblib
 from pathlib import Path
-from tensorflow.keras.models import load_model
+REPO_ROOT = Path(__file__).resolve().parents[1]
 import time
 import uuid
 import logging
+import os
 from datetime import datetime
 from prometheus_client import Counter, Histogram, Gauge, make_asgi_app
 from prometheus_fastapi_instrumentator import Instrumentator
 from . import drift_detector
+
+# MLflow for loading models from registry
+import mlflow
+import mlflow.keras
 
 # Configure logging
 logging.basicConfig(
@@ -68,21 +73,44 @@ instrumentator.instrument(app)
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-MODELS_DIR = REPO_ROOT / "models"
-ARTIFACTS_DIR = REPO_ROOT / "artifacts" / "ensemble"
+LOOK_BACK = 20
 
-LOOK_BACK = 20  
+# MLflow configuration
+MLFLOW_TRACKING_URI = os.getenv(
+    "MLFLOW_TRACKING_URI",
+    "https://mlflow-server-101264457040.europe-west3.run.app"
+)
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
-# Artefakte laden
-scaler_X = joblib.load(ARTIFACTS_DIR / "scaler_X.pkl")
-scaler_y = joblib.load(ARTIFACTS_DIR / "scaler_y.pkl")
+# Model names in MLflow Registry (latest version)
+MODEL_ANN_URI = os.getenv("MODEL_ANN_URI", "models:/Model_ANN/latest")
+MODEL_GRU_URI = os.getenv("MODEL_GRU_URI", "models:/Model_GRU/latest")
+MODEL_LSTM_URI = os.getenv("MODEL_LSTM_URI", "models:/Model_LSTM/latest")
+MODEL_TRF_URI = os.getenv("MODEL_TRF_URI", "models:/Model_Transformer/latest")
 
-# Basis-Modelle laden
-model_ann = load_model(MODELS_DIR / "model_ann.keras")
-model_gru = load_model(MODELS_DIR / "model_gru.keras")
-model_lstm = load_model(MODELS_DIR / "model_lstm.keras")
-model_trf = load_model(MODELS_DIR / "model_transformer.keras")
+# Load models from MLflow Registry at startup
+logger.info(f"Loading models from MLflow Registry: {MLFLOW_TRACKING_URI}")
+model_ann = mlflow.keras.load_model(MODEL_ANN_URI)
+logger.info(f"Loaded ANN model: {MODEL_ANN_URI}")
+model_gru = mlflow.keras.load_model(MODEL_GRU_URI)
+logger.info(f"Loaded GRU model: {MODEL_GRU_URI}")
+model_lstm = mlflow.keras.load_model(MODEL_LSTM_URI)
+logger.info(f"Loaded LSTM model: {MODEL_LSTM_URI}")
+model_trf = mlflow.keras.load_model(MODEL_TRF_URI)
+logger.info(f"Loaded Transformer model: {MODEL_TRF_URI}")
+
+# Load scalers from MLflow (stored with ANN model)
+from mlflow.tracking import MlflowClient
+client = MlflowClient()
+ann_versions = client.get_latest_versions("Model_ANN")
+if ann_versions:
+    ann_run_id = ann_versions[0].run_id
+    scalers_path = mlflow.artifacts.download_artifacts(run_id=ann_run_id, artifact_path="scalers")
+    scaler_X = joblib.load(Path(scalers_path) / "scaler_X.pkl")
+    scaler_y = joblib.load(Path(scalers_path) / "scaler_y.pkl")
+    logger.info(f"Loaded scalers from MLflow run: {ann_run_id}")
+else:
+    raise RuntimeError("Model_ANN not found in MLflow Registry - scalers unavailable")
 
 
 class SequenceRequest(BaseModel):

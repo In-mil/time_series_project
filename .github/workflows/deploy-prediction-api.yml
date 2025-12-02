@@ -26,11 +26,10 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
 
-    - name: Download models from GCS
+    # Models and scalers are loaded from MLflow Registry at runtime
+    - name: Download artifacts from GCS
       run: |
-        mkdir -p models artifacts/ensemble artifacts/drift_detection data/final_data
-        gsutil cp gs://$GCS_BUCKET/artifacts/latest/*.keras models/
-        gsutil cp gs://$GCS_BUCKET/artifacts/latest/scaler_*.pkl artifacts/ensemble/
+        mkdir -p artifacts/drift_detection data/final_data
         gsutil cp -r gs://$GCS_BUCKET/artifacts/latest/drift_detection/* artifacts/drift_detection/ || true
         gsutil cp gs://$GCS_BUCKET/data/final_data/20251115_dataset_crp.csv data/final_data/ || true
 

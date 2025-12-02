@@ -5,9 +5,11 @@ ANN Prediction Script
 Predicts 5-day price change for all cryptocurrencies using the latest available data.
 
 Usage:
-    python scripts/predict_ann.py                    # Predict for latest date only
-    python scripts/predict_ann.py --all              # Predict for all dates
-    python scripts/predict_ann.py --ticker btcusd    # Predict for specific ticker
+    python scripts/predict_ann.py                    # Predict locally
+    python scripts/predict_ann.py --gcs              # Save directly to GCS (no local file)
+    python scripts/predict_ann.py --mlflow --gcs     # MLflow model + GCS output
+    python scripts/predict_ann.py --all --gcs        # All dates to GCS
+    python scripts/predict_ann.py --ticker btcusd    # Specific ticker
 """
 
 import argparse
@@ -28,6 +30,10 @@ from tensorflow.keras.models import load_model
 import mlflow
 import mlflow.keras
 
+# GCS for cloud storage
+from google.cloud import storage
+from datetime import datetime
+
 # Paths
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_PATH = REPO_ROOT / 'data' / 'final_data' / '20251115_dataset_crp.csv'
@@ -38,6 +44,10 @@ SCALER_Y_PATH = REPO_ROOT / 'artifacts' / 'ensemble' / 'scaler_y.pkl'
 # MLflow settings
 MLFLOW_TRACKING_URI = 'https://mlflow-server-101264457040.europe-west3.run.app'
 MLFLOW_MODEL_NAME = 'Model_ANN'
+
+# GCS settings
+GCS_BUCKET = 'time-series-mlflow-data'
+GCS_PREDICTIONS_PATH = 'predictions'
 
 # Columns to drop from features (same as training)
 COLS_TO_DROP = [
@@ -152,9 +162,8 @@ def run_predictions(model, X_scaled: np.ndarray, scaler_y) -> np.ndarray:
     return y_pred
 
 
-def save_results(df: pd.DataFrame, predictions: np.ndarray, output_path: Path):
-    """Save predictions to CSV."""
-    print(f"Saving results to {output_path}...")
+def save_results(df: pd.DataFrame, predictions: np.ndarray, to_gcs: bool = False):
+    """Save predictions to CSV (locally or directly to GCS)."""
 
     # Create results DataFrame
     results = pd.DataFrame({
@@ -172,10 +181,40 @@ def save_results(df: pd.DataFrame, predictions: np.ndarray, output_path: Path):
         mae = results['abs_error'].mean()
         print(f"  MAE: {mae:.4f}")
 
-    results.to_csv(output_path, index=False)
-    print(f"  Saved {len(results):,} predictions")
+    if to_gcs:
+        # Upload directly to GCS (no local file)
+        gcs_uri = upload_to_gcs(results)
+        print(f"  Saved {len(results):,} predictions to GCS")
+        return results, gcs_uri
+    else:
+        # Save locally
+        output_path = REPO_ROOT / 'predictions_ann.csv'
+        results.to_csv(output_path, index=False)
+        print(f"  Saved {len(results):,} predictions to {output_path}")
+        return results, str(output_path)
 
-    return results
+
+def upload_to_gcs(results_df: pd.DataFrame, bucket_name: str = GCS_BUCKET):
+    """Upload predictions DataFrame directly to GCS (no local file)."""
+    print(f"Uploading to GCS bucket: {bucket_name}...")
+
+    # Create timestamped filename
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    gcs_filename = f"{GCS_PREDICTIONS_PATH}/predictions_ann_{timestamp}.csv"
+
+    # Convert DataFrame to CSV string
+    csv_data = results_df.to_csv(index=False)
+
+    # Upload directly to GCS
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(gcs_filename)
+    blob.upload_from_string(csv_data, content_type='text/csv')
+
+    gcs_uri = f"gs://{bucket_name}/{gcs_filename}"
+    print(f"  Uploaded to: {gcs_uri}")
+
+    return gcs_uri
 
 
 def main():
@@ -185,12 +224,6 @@ def main():
         type=Path,
         default=DEFAULT_DATA_PATH,
         help='Path to input dataset'
-    )
-    parser.add_argument(
-        '--output',
-        type=Path,
-        default=REPO_ROOT / 'predictions_ann.csv',
-        help='Output path for predictions'
     )
     parser.add_argument(
         '--all',
@@ -213,6 +246,11 @@ def main():
         type=str,
         default='latest',
         help='Model version to load: "latest", version number, or alias like "@champion"'
+    )
+    parser.add_argument(
+        '--gcs',
+        action='store_true',
+        help='Save predictions directly to GCS (default: save locally)'
     )
     args = parser.parse_args()
 
@@ -251,8 +289,8 @@ def main():
     # Run predictions
     predictions = run_predictions(model, X_scaled, scaler_y)
 
-    # Save results
-    results = save_results(df, predictions, args.output)
+    # Save results (to GCS or locally)
+    results, output_location = save_results(df, predictions, to_gcs=args.gcs)
 
     # Show predictions (sorted by predicted change)
     print("\nPredictions (sorted by expected 5-day change):")
@@ -264,10 +302,9 @@ def main():
         actual = results['actual']
         predicted = results['predicted']
 
-     
-        print("MODEL METRICS")
+        print("\nMODEL METRICS")
         print("=" * 10)
-        
+
         mse = mean_squared_error(actual, predicted)
         rmse = np.sqrt(mse)
         mae = mean_absolute_error(actual, predicted)
@@ -280,7 +317,7 @@ def main():
         print("=" * 10)
 
     print("\nI'm done!")
-    print(f"Results saved to: {args.output}")
+    print(f"Results saved to: {output_location}")
 
 if __name__ == "__main__":
     main()
