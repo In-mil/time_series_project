@@ -73,6 +73,8 @@ gh workflow run deploy-prediction-api.yml
 
 **Production URL**: `https://prediction-api-101264457040.europe-west3.run.app`
 
+![MLOps Flow](https://github.com/user-attachments/assets/a04a9750-8428-448c-bd1e-656a452ff042)
+
 ## License
 
 MIT
